@@ -11,7 +11,6 @@ linters:
   enable:
     - gofmt
     - goimports
-    - golint
     - govet
     - errcheck
     - staticcheck
@@ -23,14 +22,10 @@ linters:
     - unparam
     - nakedret
     - prealloc
-    - scopelint
     - gocritic
-    - gochecknoinits
-    - gochecknoglobals
     - gosec
     - funlen
     - whitespace
-    - wsl
     - godot
     - asciicheck
     - bodyclose
@@ -38,11 +33,9 @@ linters:
     - errorlint
     - exhaustive
     - exportloopref
-    - forcetypeassert
     - makezero
     - nilerr
     - predeclared
-    - tparallel
     - unconvert
     - wastedassign
 

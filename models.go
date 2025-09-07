@@ -9,16 +9,16 @@ type OrderResponse struct {
 
 // Order represents a Walmart order
 type Order struct {
-	ID             string          `json:"id"`
-	Type           string          `json:"type"`
-	OrderDate      string          `json:"orderDate"`
-	DisplayID      string          `json:"displayId"`
-	Title          string          `json:"title"`
-	ShortTitle     string          `json:"shortTitle"`
-	Groups         []OrderGroup    `json:"groups_2101"`
-	Customer       Customer        `json:"customer"`
-	Timezone       string          `json:"timezone"`
-	PriceDetails   *OrderPriceDetails `json:"priceDetails"`
+	ID             string               `json:"id"`
+	Type           string               `json:"type"`
+	OrderDate      string               `json:"orderDate"`
+	DisplayID      string               `json:"displayId"`
+	Title          string               `json:"title"`
+	ShortTitle     string               `json:"shortTitle"`
+	Groups         []OrderGroup         `json:"groups_2101"`
+	Customer       Customer             `json:"customer"`
+	Timezone       string               `json:"timezone"`
+	PriceDetails   *OrderPriceDetails   `json:"priceDetails"`
 	PaymentMethods []OrderPaymentMethod `json:"paymentMethods"`
 }
 
@@ -83,9 +83,9 @@ type Store struct {
 	Name        string `json:"name"`
 	Address     struct {
 		AddressLineOne string `json:"addressLineOne"`
-		City          string `json:"city"`
-		State         string `json:"state"`
-		PostalCode    string `json:"postalCode"`
+		City           string `json:"city"`
+		State          string `json:"state"`
+		PostalCode     string `json:"postalCode"`
 	} `json:"address"`
 }
 
@@ -127,10 +127,10 @@ type Message struct {
 
 // MessagePart represents a part of a message
 type MessagePart struct {
-	Text     string `json:"text"`
-	Bold     bool   `json:"bold"`
-	URL      string `json:"url,omitempty"`
-	LineBreak bool  `json:"lineBreak"`
+	Text      string `json:"text"`
+	Bold      bool   `json:"bold"`
+	URL       string `json:"url,omitempty"`
+	LineBreak bool   `json:"lineBreak"`
 }
 
 // OrderItem represents an individual item in an order
@@ -143,12 +143,12 @@ type OrderItem struct {
 
 // ProductInfo contains product details
 type ProductInfo struct {
-	Name         string    `json:"name"`
-	USItemID     string    `json:"usItemId"`
-	ImageInfo    ImageInfo `json:"imageInfo"`
-	OfferID      string    `json:"offerId"`
-	IsAlcohol    bool      `json:"isAlcohol"`
-	SalesUnitType string   `json:"salesUnitType"`
+	Name          string    `json:"name"`
+	USItemID      string    `json:"usItemId"`
+	ImageInfo     ImageInfo `json:"imageInfo"`
+	OfferID       string    `json:"offerId"`
+	IsAlcohol     bool      `json:"isAlcohol"`
+	SalesUnitType string    `json:"salesUnitType"`
 }
 
 // ImageInfo contains image URLs

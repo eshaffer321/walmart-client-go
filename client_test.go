@@ -199,18 +199,18 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 
 func TestBuildOrderEndpoint(t *testing.T) {
 	client, _ := NewWalmartClient(ClientConfig{})
-	
+
 	endpoint := client.buildOrderEndpoint("TEST123", true)
-	
+
 	if endpoint == "" {
 		t.Error("Endpoint is empty")
 	}
-	
+
 	// Check it contains the order ID
 	if !contains(endpoint, "TEST123") {
 		t.Error("Endpoint doesn't contain order ID")
 	}
-	
+
 	// Check it has the GraphQL hash
 	if !contains(endpoint, "d0622497daef19150438d07c506739d451cad6749cf45c3b4db95f2f5a0a65c4") {
 		t.Error("Endpoint doesn't contain correct GraphQL hash")
@@ -282,25 +282,25 @@ func findSubstring(s, substr string) bool {
 
 func TestInitializeFromCurl(t *testing.T) {
 	tempDir := t.TempDir()
-	
+
 	// Create test curl file
 	curlContent := `curl 'https://www.walmart.com/test' \
   -b 'CID=test_cid; SPID=test_spid; auth=test_auth'`
-	
+
 	curlFile := filepath.Join(tempDir, "test_curl.txt")
 	os.WriteFile(curlFile, []byte(curlContent), 0644)
-	
+
 	config := ClientConfig{
 		CookieDir: tempDir,
 	}
-	
+
 	client, _ := NewWalmartClient(config)
 	err := client.InitializeFromCurl(curlFile)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to initialize from curl: %v", err)
 	}
-	
+
 	// Check essential cookies were loaded
 	cid := client.CookieStore.Get("CID")
 	if cid == nil || cid.Value != "test_cid" {
@@ -309,7 +309,7 @@ func TestInitializeFromCurl(t *testing.T) {
 	if !cid.Essential {
 		t.Error("CID should be marked as essential")
 	}
-	
+
 	spid := client.CookieStore.Get("SPID")
 	if spid == nil || spid.Value != "test_spid" {
 		t.Error("SPID cookie not loaded correctly")

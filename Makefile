@@ -31,8 +31,15 @@ clean:
 
 lint:
 	@echo "Running linter..."
-	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Run: make install-tools" && exit 1)
-	golangci-lint run ./...
+	@if ! command -v golangci-lint > /dev/null 2>&1; then \
+		if [ -f ~/go/bin/golangci-lint ]; then \
+			~/go/bin/golangci-lint run ./...; \
+		else \
+			echo "golangci-lint not installed. Run: make install-tools" && exit 1; \
+		fi \
+	else \
+		golangci-lint run ./...; \
+	fi
 
 fmt:
 	@echo "Formatting code..."
