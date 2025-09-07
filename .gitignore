@@ -1,0 +1,56 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Environment variables
+.env
+
+# IDE specific files
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IMPORTANT: Never commit cookies or sensitive data
+cookies.json
+*.cookies.json
+cookie_*.json
+curl.txt
+curl_*.txt
+*.curl
+.walmart-api/
+cookies/
+secrets/
+
+# Build artifacts
+walmart
+cmd/walmart/walmart
+dist/
+build/
+
+# Local test files
+test_*.go
+*_test_local.go
+debug/
+tmp/
