@@ -1,0 +1,120 @@
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+    - .git
+  skip-files:
+    - ".*_test\\.go$"
+
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - golint
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - typecheck
+    - gosimple
+    - goconst
+    - misspell
+    - unparam
+    - nakedret
+    - prealloc
+    - scopelint
+    - gocritic
+    - gochecknoinits
+    - gochecknoglobals
+    - gosec
+    - funlen
+    - whitespace
+    - wsl
+    - godot
+    - asciicheck
+    - bodyclose
+    - durationcheck
+    - errorlint
+    - exhaustive
+    - exportloopref
+    - forcetypeassert
+    - makezero
+    - nilerr
+    - predeclared
+    - tparallel
+    - unconvert
+    - wastedassign
+
+  disable:
+    - dupl
+    - gocyclo
+    - lll
+
+linters-settings:
+  gofmt:
+    simplify: true
+  
+  goimports:
+    local-prefixes: github.com/eshaffer321/walmart-client-go
+  
+  golint:
+    min-confidence: 0.8
+  
+  govet:
+    check-shadowing: true
+  
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  
+  misspell:
+    locale: US
+  
+  funlen:
+    lines: 100
+    statements: 50
+  
+  godot:
+    scope: all
+    capital: true
+  
+  whitespace:
+    multi-if: true
+    multi-func: true
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Exclude some linters from running on test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - funlen
+    
+    # Exclude known issues in vendor
+    - path: vendor/
+      linters:
+        - typecheck
+        - gosec
+    
+    # Allow fmt.Print* in main package
+    - path: cmd/
+      linters:
+        - forbidigo
+      text: "use of fmt.Print"
+    
+    # Allow TODO comments
+    - text: "TODO"
+      linters:
+        - godox
