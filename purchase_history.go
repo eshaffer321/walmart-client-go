@@ -139,7 +139,7 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 	}
 
 	// Auto-save cookies after successful request
-	c.CookieStore.Save()
+	_ = c.CookieStore.Save()
 
 	return &historyResp, nil
 }

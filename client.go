@@ -54,7 +54,7 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 			homeDir, _ := os.UserHomeDir()
 			config.CookieDir = filepath.Join(homeDir, ".walmart-api")
 		}
-		os.MkdirAll(config.CookieDir, 0755)
+		_ = os.MkdirAll(config.CookieDir, 0755)
 		config.CookieFile = filepath.Join(config.CookieDir, "cookies.json")
 	}
 
@@ -69,7 +69,7 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 	}
 
 	// Try to load existing cookies
-	store.Load() // Ignore error, just means no existing cookies
+	_ = store.Load() // Ignore error, just means no existing cookies
 
 	client := &WalmartClient{
 		httpClient: &http.Client{
@@ -187,7 +187,7 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	}
 
 	// Auto-save cookies after successful request
-	c.CookieStore.Save()
+	_ = c.CookieStore.Save()
 
 	return orderResp.Data.Order, nil
 }
@@ -311,7 +311,7 @@ func (c *WalmartClient) RefreshFromBrowser() error {
 	fmt.Print("\nPath to curl file (or 'skip' to cancel): ")
 
 	var path string
-	fmt.Scanln(&path)
+	_, _ = fmt.Scanln(&path)
 
 	if path == "skip" || path == "" {
 		return fmt.Errorf("refresh cancelled")
