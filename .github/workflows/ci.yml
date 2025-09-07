@@ -86,7 +86,9 @@ jobs:
       run: go build -v ./...
     
     - name: Build CLI
-      run: go build -v -o walmart-cli ./cmd/walmart
+      run: |
+        cd cmd/walmart
+        go build -v .
 
   security:
     name: Security Scan
