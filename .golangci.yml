@@ -6,6 +6,7 @@ run:
     - .git
   skip-files:
     - ".*_test\\.go$"
+  skip-dirs-use-default: true
 
 linters:
   enable:
