@@ -318,3 +318,4 @@ func TestInitializeFromCurl(t *testing.T) {
 		t.Error("SPID should be marked as essential")
 	}
 }
+
