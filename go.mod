@@ -1,3 +1,3 @@
 module github.com/eshaffer321/walmart-client
 
-go 1.21
+go 1.20

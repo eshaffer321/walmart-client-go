@@ -288,7 +288,7 @@ func TestInitializeFromCurl(t *testing.T) {
   -b 'CID=test_cid; SPID=test_spid; auth=test_auth'`
 
 	curlFile := filepath.Join(tempDir, "test_curl.txt")
-	os.WriteFile(curlFile, []byte(curlContent), 0644)
+	_ = os.WriteFile(curlFile, []byte(curlContent), 0644)
 
 	config := ClientConfig{
 		CookieDir: tempDir,
