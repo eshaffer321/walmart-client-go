@@ -1,6 +1,8 @@
 # Walmart API Client
 
-A robust Go client for accessing Walmart order history and purchase data through their GraphQL API.
+A robust Go library and CLI for accessing Walmart order history and purchase data through their GraphQL API.
+
+Available as both a **Go library** for programmatic access and a **CLI tool** for command-line usage.
 
 ## Features
 
@@ -13,11 +15,130 @@ A robust Go client for accessing Walmart order history and purchase data through
 
 ## Installation
 
+### As a Go Library
 ```bash
-go build -o walmart .
+go get github.com/eshaffer321/walmart-client
 ```
 
-## Setup
+### As a CLI Tool
+```bash
+# Clone and build
+git clone https://github.com/eshaffer321/walmart-client-go
+cd walmart-client-go
+go build -o walmart-cli ./cmd/walmart
+
+# Or install directly
+go install github.com/eshaffer321/walmart-client/cmd/walmart@latest
+```
+
+## Library Usage (Go SDK)
+
+### Quick Start
+```go
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "time"
+    
+    walmart "github.com/eshaffer321/walmart-client"
+)
+
+func main() {
+    // Initialize client
+    config := walmart.ClientConfig{
+        RateLimit: 2 * time.Second,
+        AutoSave:  true,
+    }
+    
+    client, err := walmart.NewWalmartClient(config)
+    if err != nil {
+        panic(err)
+    }
+    
+    // Initialize from curl file (one-time setup)
+    err = client.InitializeFromCurl("curl.txt")
+    if err != nil {
+        panic(err)
+    }
+    
+    // Get recent orders as Go structs
+    orders, err := client.GetRecentOrders(10)
+    if err != nil {
+        panic(err)
+    }
+    
+    // Access data programmatically
+    for _, order := range orders {
+        fmt.Printf("Order %s: %d items\n", order.OrderID, order.ItemCount)
+    }
+    
+    // Get full order details
+    if len(orders) > 0 {
+        order, err := client.GetOrder(orders[0].OrderID, true)
+        if err != nil {
+            panic(err)
+        }
+        
+        // Access as structured data
+        fmt.Printf("Total: %.2f\n", order.PriceDetails.GrandTotal.Value)
+        fmt.Printf("Tax: %.2f\n", order.PriceDetails.TaxTotal.Value)
+        
+        // Or convert to JSON
+        jsonData, _ := json.MarshalIndent(order, "", "  ")
+        fmt.Println(string(jsonData))
+    }
+}
+```
+
+### Available Methods
+```go
+// Order operations
+client.GetOrder(orderID string, isInStore bool) (*Order, error)
+client.GetOrderAutoDetect(orderID string) (*Order, error)
+
+// Purchase history
+client.GetRecentOrders(limit int) ([]OrderSummary, error)
+client.GetAllOrders(maxPages int) ([]OrderSummary, error)
+client.SearchOrders(searchTerm string, limit int) ([]OrderSummary, error)
+client.GetOrdersByType(orderType string, limit int) ([]OrderSummary, error)
+
+// Cookie management
+client.InitializeFromCurl(curlFile string) error
+client.Status() // Print status
+client.RefreshFromBrowser() error
+
+// Helper methods for JSON output
+client.GetOrdersAsJSON(limit int) (string, error)
+client.GetOrderAsJSON(orderID string, isInStore bool) (string, error)
+```
+
+### Data Structures
+All responses return strongly-typed Go structs with JSON tags:
+
+```go
+type Order struct {
+    ID             string               `json:"id"`
+    OrderDate      string               `json:"orderDate"`
+    DisplayID      string               `json:"displayId"`
+    Groups         []OrderGroup         `json:"groups_2101"`
+    PriceDetails   *OrderPriceDetails   `json:"priceDetails"`
+    PaymentMethods []OrderPaymentMethod `json:"paymentMethods"`
+    // ... more fields
+}
+
+type OrderPriceDetails struct {
+    SubTotal   *PriceLineItem `json:"subTotal"`
+    TaxTotal   *PriceLineItem `json:"taxTotal"`
+    GrandTotal *PriceLineItem `json:"grandTotal"`
+    Savings    *PriceLineItem `json:"savings"`
+}
+```
+
+## CLI Usage
+
+### Setup
 
 1. **Get your cookies from Walmart.com:**
    - Log into walmart.com in Chrome/Firefox
@@ -28,18 +149,18 @@ go build -o walmart .
    - Right-click → Copy → Copy as cURL
    - Save to a file (e.g., `curl.txt`)
 
-2. **Initialize the client:**
+2. **Initialize the CLI:**
 ```bash
-./walmart -init curl.txt
+./walmart-cli -init curl.txt
 ```
 
 This saves your cookies to `~/.walmart-api/cookies.json` for future use.
 
-## Usage
+### CLI Commands
 
-### View Recent Orders
+#### View Recent Orders
 ```bash
-./walmart -history
+./walmart-cli -history
 
 # Output:
 # === Order History (10 orders) ===
@@ -53,14 +174,14 @@ This saves your cookies to `~/.walmart-api/cookies.json` for future use.
 #      ...
 ```
 
-### Search Orders
+#### Search Orders
 ```bash
-./walmart -search "cheese"
+./walmart-cli -search "cheese"
 ```
 
-### Get Order Details
+#### Get Order Details
 ```bash
-./walmart -order 18420337004257359578
+./walmart-cli -order 18420337004257359578
 
 # Output:
 # === Order Details ===
@@ -83,14 +204,14 @@ This saves your cookies to `~/.walmart-api/cookies.json` for future use.
 # Visa ending in 0953
 ```
 
-### List All Orders (with pagination)
+#### List All Orders (with pagination)
 ```bash
-./walmart -list-all
+./walmart-cli -list-all
 ```
 
-### Check Cookie Status
+#### Check Cookie Status
 ```bash
-./walmart -status
+./walmart-cli -status
 
 # Output:
 # === Cookie Store Status ===
@@ -105,9 +226,9 @@ This saves your cookies to `~/.walmart-api/cookies.json` for future use.
 #   ✅ customer: 2m30s ago
 ```
 
-### Refresh Cookies
+#### Refresh Cookies
 ```bash
-./walmart -refresh
+./walmart-cli -refresh
 # Follow prompts to update cookies from browser
 ```
 
@@ -147,11 +268,16 @@ Each order includes:
 
 ```
 walmart-client/
-├── main.go              # CLI interface
 ├── client.go            # Main client with cookie management
 ├── models.go            # Data structures for orders
 ├── purchase_history.go  # Purchase history API methods
-└── analysis/            # Test and analysis scripts (can be deleted)
+├── example_usage.go     # Library usage examples
+├── example_json.go      # JSON conversion helpers
+├── cmd/
+│   └── walmart/
+│       └── main.go      # CLI interface
+└── example/
+    └── main.go          # Example usage
 ```
 
 ## Cookie Storage
