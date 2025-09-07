@@ -60,4 +60,3 @@ func main() {
 
 	fmt.Printf("Found %d orders containing 'bread'\n", len(results))
 }
-

@@ -197,4 +197,3 @@ func (o *Order) GetItemCount() int {
 	}
 	return count
 }
-

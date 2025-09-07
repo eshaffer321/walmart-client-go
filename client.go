@@ -445,4 +445,3 @@ func extractCookiesFromCurl(curlCmd string) map[string]string {
 	}
 	return cookies
 }
-

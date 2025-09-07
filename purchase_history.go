@@ -272,4 +272,3 @@ func (c *WalmartClient) setPurchaseHistoryHeaders(req *http.Request) {
 		req.Header.Set(k, v)
 	}
 }
-

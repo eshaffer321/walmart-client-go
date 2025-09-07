@@ -12,13 +12,13 @@ func ExampleJSON() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	// Get orders
 	orders, err := client.GetRecentOrders(5)
 	if err != nil {
 		panic(err)
 	}
-	
+
 	// Convert to JSON
 	jsonData, err := json.MarshalIndent(orders, "", "  ")
 	if err != nil {
@@ -26,18 +26,18 @@ func ExampleJSON() {
 	}
 	fmt.Println("Orders as JSON:")
 	fmt.Println(string(jsonData))
-	
+
 	// Get single order
 	if len(orders) > 0 {
 		order, err := client.GetOrder(orders[0].OrderID, true)
 		if err != nil {
 			panic(err)
 		}
-		
+
 		// Access as struct
 		fmt.Printf("Order Total (as float): %.2f\n", order.PriceDetails.GrandTotal.Value)
 		fmt.Printf("Order Total (as string): %s\n", order.PriceDetails.GrandTotal.DisplayValue)
-		
+
 		// Or convert whole order to JSON
 		orderJSON, err := json.MarshalIndent(order, "", "  ")
 		if err != nil {
@@ -54,12 +54,12 @@ func (c *WalmartClient) GetOrdersAsJSON(limit int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	jsonData, err := json.MarshalIndent(orders, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	
+
 	return string(jsonData), nil
 }
 
@@ -69,11 +69,11 @@ func (c *WalmartClient) GetOrderAsJSON(orderID string, isInStore bool) (string, 
 	if err != nil {
 		return "", err
 	}
-	
+
 	jsonData, err := json.MarshalIndent(order, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	
+
 	return string(jsonData), nil
 }
