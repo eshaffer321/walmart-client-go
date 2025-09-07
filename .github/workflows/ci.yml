@@ -83,12 +83,9 @@ jobs:
         go-version: ${{ matrix.go-version }}
     
     - name: Build library
-      run: go build -v ./...
-    
-    - name: Build CLI
       run: |
-        cd cmd/walmart
         go build -v .
+        go build -v ./...
 
   security:
     name: Security Scan
