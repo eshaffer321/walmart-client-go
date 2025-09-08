@@ -44,7 +44,7 @@ func ExampleUsage() {
 		// Access items
 		for _, item := range fullOrder.GetItems() {
 			if item.ProductInfo != nil {
-				fmt.Printf("- %s (qty: %d)\n", item.ProductInfo.Name, item.Quantity)
+				fmt.Printf("- %s (qty: %.3f)\n", item.ProductInfo.Name, item.Quantity)
 			}
 		}
 	}
