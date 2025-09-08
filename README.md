@@ -1,5 +1,11 @@
 # Walmart API Client
 
+[![CI](https://github.com/eshaffer321/walmart-client-go/actions/workflows/ci.yml/badge.svg)](https://github.com/eshaffer321/walmart-client-go/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/eshaffer321/walmart-client-go/branch/main/graph/badge.svg)](https://codecov.io/gh/eshaffer321/walmart-client-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/eshaffer321/walmart-client)](https://goreportcard.com/report/github.com/eshaffer321/walmart-client)
+[![Go Reference](https://pkg.go.dev/badge/github.com/eshaffer321/walmart-client.svg)](https://pkg.go.dev/github.com/eshaffer321/walmart-client)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A robust Go library and CLI for accessing Walmart order history and purchase data through their GraphQL API.
 
 Available as both a **Go library** for programmatic access and a **CLI tool** for command-line usage.
