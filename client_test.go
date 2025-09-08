@@ -119,13 +119,13 @@ func TestOrderModels(t *testing.T) {
 			{
 				Items: []OrderItem{
 					{
-						Quantity: 2,
+						Quantity: 2.0,
 						PriceInfo: &ItemPrice{
 							LinePrice: &Price{Value: 10.00},
 						},
 					},
 					{
-						Quantity: 1,
+						Quantity: 1.0,
 						PriceInfo: &ItemPrice{
 							LinePrice: &Price{Value: 5.00},
 						},
@@ -316,5 +316,101 @@ func TestInitializeFromCurl(t *testing.T) {
 	}
 	if !spid.Essential {
 		t.Error("SPID should be marked as essential")
+	}
+}
+
+func TestParseOrderWithDecimalQuantities(t *testing.T) {
+	// This is actual JSON from a Walmart order with weighted produce
+	jsonData := `{
+		"data": {
+			"order": {
+				"id": "200013427048402",
+				"groups_2101": [{
+					"items": [{
+						"id": "1",
+						"quantity": 1.081,
+						"productInfo": {
+							"name": "Bananas, sold by weight",
+							"usItemId": "44390948"
+						},
+						"priceInfo": {
+							"linePrice": {
+								"value": 0.58
+							}
+						}
+					}, {
+						"id": "2",
+						"quantity": 0.299,
+						"productInfo": {
+							"name": "Roma Tomatoes",
+							"usItemId": "44391210"
+						},
+						"priceInfo": {
+							"linePrice": {
+								"value": 0.44
+							}
+						}
+					}]
+				}]
+			}
+		}
+	}`
+
+	var response OrderResponse
+	err := json.Unmarshal([]byte(jsonData), &response)
+
+	// This test will FAIL with current implementation
+	if err != nil {
+		t.Fatalf("Should handle decimal quantities, but got error: %v", err)
+	}
+
+	if len(response.Data.Order.Groups) == 0 {
+		t.Fatal("No groups found in response")
+	}
+
+	if len(response.Data.Order.Groups[0].Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d", len(response.Data.Order.Groups[0].Items))
+	}
+
+	// Check the decimal quantities parsed correctly
+	if response.Data.Order.Groups[0].Items[0].Quantity != 1.081 {
+		t.Errorf("Expected quantity 1.081, got %v", response.Data.Order.Groups[0].Items[0].Quantity)
+	}
+
+	if response.Data.Order.Groups[0].Items[1].Quantity != 0.299 {
+		t.Errorf("Expected quantity 0.299, got %v", response.Data.Order.Groups[0].Items[1].Quantity)
+	}
+}
+
+func TestParseOrderWithWholeNumberQuantities(t *testing.T) {
+	// Test that whole numbers still work (quantity: 1 not 1.0 in JSON)
+	jsonData := `{
+		"data": {
+			"order": {
+				"groups_2101": [{
+					"items": [{
+						"quantity": 2,
+						"productInfo": {"name": "Milk"}
+					}]
+				}]
+			}
+		}
+	}`
+
+	var response OrderResponse
+	err := json.Unmarshal([]byte(jsonData), &response)
+
+	if err != nil {
+		t.Fatalf("Should handle whole number quantities, but got error: %v", err)
+	}
+
+	if len(response.Data.Order.Groups) == 0 || len(response.Data.Order.Groups[0].Items) == 0 {
+		t.Fatal("No items found in response")
+	}
+
+	// After fixing to float64, this should be 2.0
+	expectedQuantity := 2.0
+	if response.Data.Order.Groups[0].Items[0].Quantity != expectedQuantity {
+		t.Errorf("Expected quantity %v, got %v", expectedQuantity, response.Data.Order.Groups[0].Items[0].Quantity)
 	}
 }

@@ -136,7 +136,7 @@ type MessagePart struct {
 // OrderItem represents an individual item in an order
 type OrderItem struct {
 	ID          string       `json:"id"`
-	Quantity    int          `json:"quantity"`
+	Quantity    float64      `json:"quantity"`
 	ProductInfo *ProductInfo `json:"productInfo"`
 	PriceInfo   *ItemPrice   `json:"priceInfo"`
 }
