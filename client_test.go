@@ -399,7 +399,7 @@ func TestParseOrderWithWholeNumberQuantities(t *testing.T) {
 
 	var response OrderResponse
 	err := json.Unmarshal([]byte(jsonData), &response)
-	
+
 	if err != nil {
 		t.Fatalf("Should handle whole number quantities, but got error: %v", err)
 	}
