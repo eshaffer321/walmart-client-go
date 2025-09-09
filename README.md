@@ -14,6 +14,7 @@ Available as both a **Go library** for programmatic access and a **CLI tool** fo
 
 - 🛒 Fetch complete order history (both in-store and delivery orders)
 - 📦 Get detailed order information including items, prices, tax, and totals
+- 💰 **NEW:** Driver tip tracking for delivery orders - see actual amount charged
 - 🔍 Search orders for specific items
 - 📄 Pagination support for large order histories
 - 🍪 Automatic cookie management with rotation to prevent staleness
@@ -103,6 +104,7 @@ func main() {
 // Order operations
 client.GetOrder(orderID string, isInStore bool) (*Order, error)
 client.GetOrderAutoDetect(orderID string) (*Order, error)
+client.GetDeliveryOrderWithTip(orderID string) (*Order, error) // NEW: Ensures tip info is included
 
 // Purchase history
 client.GetRecentOrders(limit int) ([]OrderSummary, error)
@@ -135,10 +137,48 @@ type Order struct {
 }
 
 type OrderPriceDetails struct {
-    SubTotal   *PriceLineItem `json:"subTotal"`
-    TaxTotal   *PriceLineItem `json:"taxTotal"`
-    GrandTotal *PriceLineItem `json:"grandTotal"`
-    Savings    *PriceLineItem `json:"savings"`
+    SubTotal     *PriceLineItem  `json:"subTotal"`
+    TaxTotal     *PriceLineItem  `json:"taxTotal"`
+    GrandTotal   *PriceLineItem  `json:"grandTotal"`
+    DriverTip    *PriceLineItem  `json:"driverTip"`    // NEW: Driver tip for delivery
+    TotalWithTip *PriceLineItem  `json:"totalWithTip"` // NEW: Total including tip
+    Savings      *PriceLineItem  `json:"savings"`
+    Fees         []PriceLineItem `json:"fees"`         // NEW: Additional fees
+}
+```
+
+### Working with Delivery Orders and Tips
+
+For delivery orders, the client now tracks driver tips to match the actual card charge:
+
+```go
+// Fetch a delivery order with tip information
+order, err := client.GetDeliveryOrderWithTip("200013441152420")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Access pricing with tip
+if order.PriceDetails != nil {
+    fmt.Printf("Subtotal: $%.2f\n", order.PriceDetails.SubTotal.Value)
+    fmt.Printf("Tax: $%.2f\n", order.PriceDetails.TaxTotal.Value)
+    fmt.Printf("Grand Total: $%.2f\n", order.PriceDetails.GrandTotal.Value)
+    
+    // Driver tip (if available in API response)
+    if order.PriceDetails.DriverTip != nil {
+        fmt.Printf("Driver Tip: $%.2f\n", order.PriceDetails.DriverTip.Value)
+    }
+    
+    // Total including tip (calculated automatically)
+    if order.PriceDetails.TotalWithTip != nil {
+        fmt.Printf("Total with Tip: $%.2f\n", order.PriceDetails.TotalWithTip.Value)
+        fmt.Println("This should match your credit card charge")
+    }
+}
+
+// Check if an order is a delivery order
+if order.IsDeliveryOrder() {
+    fmt.Println("This is a delivery order")
 }
 ```
 
@@ -266,6 +306,8 @@ Each order includes:
 - ✅ Complete item list with names, quantities, and item IDs
 - ✅ Individual item prices
 - ✅ Subtotal, tax, and total amounts
+- ✅ **Driver tips for delivery orders (when available)**
+- ✅ **Total with tip - matches actual card charge**
 - ✅ Payment method information
 - ✅ Store information (for in-store purchases)
 - ✅ Delivery details (for online orders)

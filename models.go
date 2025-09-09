@@ -1,5 +1,7 @@
 package walmart
 
+import "fmt"
+
 // OrderResponse is the top-level GraphQL response
 type OrderResponse struct {
 	Data struct {
@@ -24,10 +26,13 @@ type Order struct {
 
 // OrderPriceDetails contains the order-level pricing
 type OrderPriceDetails struct {
-	SubTotal   *PriceLineItem `json:"subTotal"`
-	TaxTotal   *PriceLineItem `json:"taxTotal"`
-	GrandTotal *PriceLineItem `json:"grandTotal"`
-	Savings    *PriceLineItem `json:"savings"`
+	SubTotal     *PriceLineItem `json:"subTotal"`
+	TaxTotal     *PriceLineItem `json:"taxTotal"`
+	GrandTotal   *PriceLineItem `json:"grandTotal"`
+	DriverTip    *PriceLineItem `json:"driverTip"`    // Driver tip for delivery orders
+	TotalWithTip *PriceLineItem `json:"totalWithTip"` // Total including tip (grandTotal + driverTip)
+	Savings      *PriceLineItem `json:"savings"`
+	Fees         []PriceLineItem `json:"fees"`        // Additional fees including delivery fee
 }
 
 // PriceLineItem represents a line item in pricing
@@ -91,10 +96,13 @@ type Store struct {
 
 // PriceDetails contains detailed pricing information
 type PriceDetails struct {
-	SubTotal   *Money   `json:"subTotal"`
-	Tax        *TaxInfo `json:"tax"`
-	Savings    *Money   `json:"savings"`
-	GrandTotal *Money   `json:"grandTotal"`
+	SubTotal     *Money   `json:"subTotal"`
+	Tax          *TaxInfo `json:"tax"`
+	Savings      *Money   `json:"savings"`
+	GrandTotal   *Money   `json:"grandTotal"`
+	DriverTip    *Money   `json:"driverTip"`    // Driver tip for delivery orders
+	DeliveryFee  *Money   `json:"deliveryFee"`  // Delivery fee
+	TotalWithTip *Money   `json:"totalWithTip"` // Total including tip
 }
 
 // TaxInfo contains tax information
@@ -196,4 +204,37 @@ func (o *Order) GetItemCount() int {
 		count += group.ItemCount
 	}
 	return count
+}
+
+// CalculateTotalWithTip calculates and sets the TotalWithTip field
+func (o *Order) CalculateTotalWithTip() {
+	if o.PriceDetails == nil || o.PriceDetails.GrandTotal == nil {
+		return
+	}
+	
+	total := o.PriceDetails.GrandTotal.Value
+	tipAmount := 0.0
+	
+	if o.PriceDetails.DriverTip != nil {
+		tipAmount = o.PriceDetails.DriverTip.Value
+	}
+	
+	if tipAmount > 0 {
+		totalWithTip := total + tipAmount
+		o.PriceDetails.TotalWithTip = &PriceLineItem{
+			Label:        "Total with Tip",
+			Value:        totalWithTip,
+			DisplayValue: fmt.Sprintf("$%.2f", totalWithTip),
+		}
+	}
+}
+
+// IsDeliveryOrder checks if the order is a delivery order
+func (o *Order) IsDeliveryOrder() bool {
+	for _, group := range o.Groups {
+		if group.FulfillmentType == "SC_DELIVERY" || group.FulfillmentType == "DFS" {
+			return true
+		}
+	}
+	return false
 }

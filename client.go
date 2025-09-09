@@ -186,10 +186,17 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 		return nil, fmt.Errorf("no order data in response")
 	}
 
+	order := orderResp.Data.Order
+	
+	// Calculate total with tip for delivery orders
+	if order.IsDeliveryOrder() {
+		order.CalculateTotalWithTip()
+	}
+
 	// Auto-save cookies after successful request
 	_ = c.CookieStore.Save()
 
-	return orderResp.Data.Order, nil
+	return order, nil
 }
 
 // GetOrderAutoDetect tries to fetch an order, automatically detecting if it's in-store or delivery
@@ -207,6 +214,22 @@ func (c *WalmartClient) GetOrderAutoDetect(orderID string) (*Order, error) {
 	}
 
 	return nil, fmt.Errorf("order not found as either in-store or delivery: %w", err)
+}
+
+// GetDeliveryOrderWithTip fetches a delivery order and ensures tip information is included
+func (c *WalmartClient) GetDeliveryOrderWithTip(orderID string) (*Order, error) {
+	// Fetch as delivery order (isInStore = false)
+	order, err := c.GetOrder(orderID, false)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Calculate total with tip if not already present
+	if order.PriceDetails != nil && order.PriceDetails.TotalWithTip == nil {
+		order.CalculateTotalWithTip()
+	}
+	
+	return order, nil
 }
 
 // updateCookiesFromResponse updates cookie store with Set-Cookie headers
@@ -367,8 +390,10 @@ func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) strin
 		"orderIsInStore":       isInStore,
 		"clickThroughGroupId":  "0",
 		"enableIsWcpOrder":     false,
-		"enabledFeatures":      []string{"csat-northstar-v1"},
+		"enabledFeatures":      []string{"csat-northstar-v1", "tips", "delivery-fees"},
 		"enableSignOnDelivery": true,
+		"includeTipDetails":    true,
+		"includeFeesDetails":   true,
 	}
 
 	variablesJSON, _ := json.Marshal(variables)
