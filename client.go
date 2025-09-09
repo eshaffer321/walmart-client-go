@@ -187,7 +187,7 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	}
 
 	order := orderResp.Data.Order
-	
+
 	// Calculate total with tip for delivery orders
 	if order.IsDeliveryOrder() {
 		order.CalculateTotalWithTip()
@@ -223,12 +223,12 @@ func (c *WalmartClient) GetDeliveryOrderWithTip(orderID string) (*Order, error) 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Calculate total with tip if not already present
 	if order.PriceDetails != nil && order.PriceDetails.TotalWithTip == nil {
 		order.CalculateTotalWithTip()
 	}
-	
+
 	return order, nil
 }
 

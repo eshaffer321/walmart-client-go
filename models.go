@@ -26,13 +26,13 @@ type Order struct {
 
 // OrderPriceDetails contains the order-level pricing
 type OrderPriceDetails struct {
-	SubTotal     *PriceLineItem `json:"subTotal"`
-	TaxTotal     *PriceLineItem `json:"taxTotal"`
-	GrandTotal   *PriceLineItem `json:"grandTotal"`
-	DriverTip    *PriceLineItem `json:"driverTip"`    // Driver tip for delivery orders
-	TotalWithTip *PriceLineItem `json:"totalWithTip"` // Total including tip (grandTotal + driverTip)
-	Savings      *PriceLineItem `json:"savings"`
-	Fees         []PriceLineItem `json:"fees"`        // Additional fees including delivery fee
+	SubTotal     *PriceLineItem  `json:"subTotal"`
+	TaxTotal     *PriceLineItem  `json:"taxTotal"`
+	GrandTotal   *PriceLineItem  `json:"grandTotal"`
+	DriverTip    *PriceLineItem  `json:"driverTip"`    // Driver tip for delivery orders
+	TotalWithTip *PriceLineItem  `json:"totalWithTip"` // Total including tip (grandTotal + driverTip)
+	Savings      *PriceLineItem  `json:"savings"`
+	Fees         []PriceLineItem `json:"fees"` // Additional fees including delivery fee
 }
 
 // PriceLineItem represents a line item in pricing
@@ -211,14 +211,14 @@ func (o *Order) CalculateTotalWithTip() {
 	if o.PriceDetails == nil || o.PriceDetails.GrandTotal == nil {
 		return
 	}
-	
+
 	total := o.PriceDetails.GrandTotal.Value
 	tipAmount := 0.0
-	
+
 	if o.PriceDetails.DriverTip != nil {
 		tipAmount = o.PriceDetails.DriverTip.Value
 	}
-	
+
 	if tipAmount > 0 {
 		totalWithTip := total + tipAmount
 		o.PriceDetails.TotalWithTip = &PriceLineItem{
