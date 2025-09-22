@@ -14,7 +14,8 @@ Available as both a **Go library** for programmatic access and a **CLI tool** fo
 
 - 🛒 Fetch complete order history (both in-store and delivery orders)
 - 📦 Get detailed order information including items, prices, tax, and totals
-- 💰 **NEW:** Driver tip tracking for delivery orders - see actual amount charged
+- 💰 Driver tip tracking for delivery orders - see actual amount charged
+- 💳 **NEW:** Order ledger API for payment tracking - match orders to bank transactions
 - 🔍 Search orders for specific items
 - 📄 Pagination support for large order histories
 - 🍪 Automatic cookie management with rotation to prevent staleness
@@ -104,7 +105,8 @@ func main() {
 // Order operations
 client.GetOrder(orderID string, isInStore bool) (*Order, error)
 client.GetOrderAutoDetect(orderID string) (*Order, error)
-client.GetDeliveryOrderWithTip(orderID string) (*Order, error) // NEW: Ensures tip info is included
+client.GetDeliveryOrderWithTip(orderID string) (*Order, error) // Ensures tip info is included
+client.GetOrderLedger(orderID string) (*OrderLedger, error)    // NEW: Get payment ledger for bank reconciliation
 
 // Purchase history
 client.GetRecentOrders(limit int) ([]OrderSummary, error)
@@ -163,12 +165,12 @@ if order.PriceDetails != nil {
     fmt.Printf("Subtotal: $%.2f\n", order.PriceDetails.SubTotal.Value)
     fmt.Printf("Tax: $%.2f\n", order.PriceDetails.TaxTotal.Value)
     fmt.Printf("Grand Total: $%.2f\n", order.PriceDetails.GrandTotal.Value)
-    
+
     // Driver tip (if available in API response)
     if order.PriceDetails.DriverTip != nil {
         fmt.Printf("Driver Tip: $%.2f\n", order.PriceDetails.DriverTip.Value)
     }
-    
+
     // Total including tip (calculated automatically)
     if order.PriceDetails.TotalWithTip != nil {
         fmt.Printf("Total with Tip: $%.2f\n", order.PriceDetails.TotalWithTip.Value)
@@ -181,6 +183,45 @@ if order.IsDeliveryOrder() {
     fmt.Println("This is a delivery order")
 }
 ```
+
+### Payment Ledger and Bank Reconciliation
+
+The order ledger API provides detailed payment information showing actual credit card charges, which is essential for matching Walmart orders to bank transactions when orders have been modified or split:
+
+```go
+// Get payment ledger for an order
+ledger, err := client.GetOrderLedger("200013509224581")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Display payment breakdown
+fmt.Printf("Order #%s Payment Details:\n", ledger.OrderID)
+
+for _, pm := range ledger.PaymentMethods {
+    if pm.PaymentType == "CREDITCARD" {
+        fmt.Printf("\n%s ending in %s:\n", pm.CardType, pm.LastFour)
+
+        // Show individual charges (may be split)
+        for i, charge := range pm.FinalCharges {
+            fmt.Printf("  Charge %d: $%.2f\n", i+1, charge)
+        }
+
+        fmt.Printf("  Total: $%.2f\n", pm.TotalCharged)
+    } else if pm.PaymentType == "GIFTCARD" {
+        fmt.Printf("\nWalmart Cash: $%.2f\n", pm.TotalCharged)
+    }
+}
+```
+
+**Why use the Order Ledger?**
+
+When Walmart modifies an order (item adjustments, substitutions, etc.), the charges to your credit card may be split into multiple transactions. For example:
+- Order total shows: $185.83
+- But your bank shows: $178.96 and $4.12 (two separate charges)
+- Plus Walmart Cash: $2.75
+
+The order ledger provides these actual charge amounts, making it possible to accurately match orders to bank transactions for accounting and reconciliation purposes.
 
 ## CLI Usage
 
