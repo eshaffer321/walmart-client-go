@@ -11,17 +11,17 @@ import (
 
 // OrderLedger represents simplified order payment information
 type OrderLedger struct {
-	OrderID        string                   `json:"orderId"`
-	PaymentMethods []PaymentMethodCharges   `json:"paymentMethods"`
+	OrderID        string                 `json:"orderId"`
+	PaymentMethods []PaymentMethodCharges `json:"paymentMethods"`
 }
 
 // PaymentMethodCharges contains the final charges for a payment method
 type PaymentMethodCharges struct {
 	PaymentType  string    `json:"paymentType"`  // "CREDITCARD", "GIFTCARD"
-	CardType     string    `json:"cardType"`      // "VISA", "WMTRC", etc.
-	LastFour     string    `json:"lastFour"`      // Last 4 digits of card
-	FinalCharges []float64 `json:"finalCharges"`  // Individual charge amounts
-	TotalCharged float64   `json:"totalCharged"`  // Sum of final charges
+	CardType     string    `json:"cardType"`     // "VISA", "WMTRC", etc.
+	LastFour     string    `json:"lastFour"`     // Last 4 digits of card
+	FinalCharges []float64 `json:"finalCharges"` // Individual charge amounts
+	TotalCharged float64   `json:"totalCharged"` // Sum of final charges
 }
 
 // OrderLedgerResponse represents the raw API response
@@ -35,9 +35,9 @@ type OrderLedgerResponse struct {
 
 // PaymentMethodLedger represents a payment method's transaction history
 type PaymentMethodLedger struct {
-	PaymentType  string        `json:"paymentType"`  // "CREDITCARD", "GIFTCARD"
-	CardType     string        `json:"cardType"`      // "VISA", "WMTRC"
-	Description  string        `json:"description"`   // "Ending in 0953"
+	PaymentType  string        `json:"paymentType"` // "CREDITCARD", "GIFTCARD"
+	CardType     string        `json:"cardType"`    // "VISA", "WMTRC"
+	Description  string        `json:"description"` // "Ending in 0953"
 	Transactions []Transaction `json:"transactions"`
 }
 

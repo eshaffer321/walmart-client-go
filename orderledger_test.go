@@ -253,16 +253,16 @@ func TestGetOrderLedger(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "invalid order ID",
-			orderID: "",
-			wantErr: true,
+			name:       "invalid order ID",
+			orderID:    "",
+			wantErr:    true,
 			errMessage: "order ID is required",
 		},
 		{
-			name:    "malformed JSON response",
-			orderID: "200013509224585",
+			name:         "malformed JSON response",
+			orderID:      "200013509224585",
 			mockResponse: `{invalid json}`,
-			wantErr: true,
+			wantErr:      true,
 		},
 		{
 			name:    "payment method without description",
