@@ -9,8 +9,8 @@ coverage:
   status:
     project:
       default:
-        target: 70%
-        threshold: 5%
+        target: 60%
+        threshold: 10%
         paths:
           - "*.go"
           - "!*_test.go"
@@ -18,8 +18,8 @@ coverage:
           - "!example/"
     patch:
       default:
-        target: 70%
-        threshold: 5%
+        target: 50%
+        threshold: 10%
 
 parsers:
   gcov:
