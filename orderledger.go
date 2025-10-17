@@ -3,6 +3,7 @@ package walmart
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -66,14 +67,24 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 		return nil, fmt.Errorf("order ID is required")
 	}
 
+	c.logger.Debug("fetching order ledger",
+		slog.String("order_id", orderID))
+
 	// Use the hash from the provided URL
 	const ledgerHash = "1234d48bfc5e62b608c0dae2c5752f31978870456bcf0023bad3988009e70919"
 
 	url := fmt.Sprintf("https://www.walmart.com/orchestra/orders/graphql/getOrderLedger/%s?variables={\"orderId\":\"%s\"}",
 		ledgerHash, orderID)
 
+	c.logger.Debug("order ledger request",
+		slog.String("order_id", orderID),
+		slog.String("endpoint", url))
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		c.logger.Error("failed to create request",
+			slog.String("order_id", orderID),
+			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
@@ -82,21 +93,40 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.logger.Error("request failed",
+			slog.String("order_id", orderID),
+			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	c.logger.Debug("received response",
+		slog.String("order_id", orderID),
+		slog.Int("status_code", resp.StatusCode))
+
 	if resp.StatusCode != http.StatusOK {
+		c.logger.Warn("non-200 response",
+			slog.String("order_id", orderID),
+			slog.Int("status_code", resp.StatusCode))
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	var ledgerResp OrderLedgerResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ledgerResp); err != nil {
+		c.logger.Error("failed to parse response",
+			slog.String("order_id", orderID),
+			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 
 	// Convert to simplified structure
-	return convertToOrderLedger(orderID, ledgerResp), nil
+	ledger := convertToOrderLedger(orderID, ledgerResp)
+
+	c.logger.Info("fetched order ledger",
+		slog.String("order_id", orderID),
+		slog.Int("payment_method_count", len(ledger.PaymentMethods)))
+
+	return ledger, nil
 }
 
 // convertToOrderLedger converts the raw API response to a simplified structure
