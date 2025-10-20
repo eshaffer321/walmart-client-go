@@ -2,29 +2,35 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	walmart "github.com/eshaffer321/walmart-client"
 )
 
 func main() {
-	// Initialize client
+	// Create a structured logger (JSON format to stdout)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	// Initialize client with logger
+	// To disable logging, pass nil instead of logger
 	config := walmart.ClientConfig{
 		RateLimit: 2 * time.Second,
 		AutoSave:  true,
+		Logger:    logger, // Pass nil to disable all logging
 	}
 
 	client, err := walmart.NewWalmartClient(config)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Sprintf("Failed to create client: %v", err))
 	}
 
 	// Example 1: Get recent orders
-	fmt.Println("=== Recent Orders ===")
+	fmt.Println("\n=== Recent Orders ===")
 	orders, err := client.GetRecentOrders(5)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Sprintf("Failed to get recent orders: %v", err))
 	}
 
 	for _, order := range orders {
@@ -39,7 +45,7 @@ func main() {
 
 		fullOrder, err := client.GetOrder(orderID, isInStore)
 		if err != nil {
-			log.Fatal(err)
+			panic(fmt.Sprintf("Failed to get order: %v", err))
 		}
 
 		fmt.Printf("Order Total: %s\n", fullOrder.PriceDetails.GrandTotal.DisplayValue)
@@ -55,8 +61,12 @@ func main() {
 	fmt.Println("\n=== Search Results ===")
 	results, err := client.SearchOrders("bread", 10)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Sprintf("Failed to search orders: %v", err))
 	}
 
 	fmt.Printf("Found %d orders containing 'bread'\n", len(results))
+
+	fmt.Println("\n=== Logger Note ===")
+	fmt.Println("All operations above are logged with structured JSON output to stdout.")
+	fmt.Println("To disable logging, set Logger: nil in ClientConfig.")
 }

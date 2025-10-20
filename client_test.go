@@ -1,11 +1,14 @@
 package walmart
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -412,5 +415,160 @@ func TestParseOrderWithWholeNumberQuantities(t *testing.T) {
 	expectedQuantity := 2.0
 	if response.Data.Order.Groups[0].Items[0].Quantity != expectedQuantity {
 		t.Errorf("Expected quantity %v, got %v", expectedQuantity, response.Data.Order.Groups[0].Items[0].Quantity)
+	}
+}
+
+func TestWalmartClientWithLogger(t *testing.T) {
+	// Create a buffer to capture log output with debug level enabled
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug, // Enable debug level to capture all logs
+	})
+	logger := slog.New(handler)
+
+	tempDir := t.TempDir()
+	config := ClientConfig{
+		CookieDir: tempDir,
+		Logger:    logger,
+	}
+
+	// NewWalmartClient logs on initialization
+	client, err := NewWalmartClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create client with logger: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Client is nil")
+	}
+
+	// Verify logger is set
+	if client.logger == nil {
+		t.Fatal("Client logger is nil")
+	}
+
+	// Check that initialization was logged
+	output := buf.String()
+	if output == "" {
+		t.Errorf("Expected log output from initialization but got none")
+	}
+
+	// Verify log contains expected structured fields
+	if !strings.Contains(output, "client=walmart") {
+		t.Errorf("Log output should contain client=walmart attribute, got: %s", output)
+	}
+
+	// Verify cookie initialization was logged (at debug level when no file exists)
+	if !strings.Contains(output, "cookie store initialized") && !strings.Contains(output, "no existing cookies found") {
+		t.Errorf("Expected cookie initialization log message, got: %s", output)
+	}
+}
+
+func TestWalmartClientWithoutLogger(t *testing.T) {
+	// Test with nil logger - should not crash and should not output
+	tempDir := t.TempDir()
+	config := ClientConfig{
+		CookieDir: tempDir,
+		Logger:    nil, // Explicitly nil
+	}
+
+	client, err := NewWalmartClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create client without logger: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Client is nil")
+	}
+
+	// Verify logger is set to no-op logger (not nil)
+	if client.logger == nil {
+		t.Fatal("Client logger should not be nil even when config.Logger is nil")
+	}
+
+	// Perform operations that would normally log
+	// These should not panic or crash
+	client.CookieStore.Set("test", &Cookie{
+		Value:  "test_value",
+		Source: "test",
+	})
+
+	// Save cookies (logs internally)
+	_ = client.CookieStore.Save()
+
+	// If we got here without panicking, the test passes
+}
+
+func TestCookieStoreWithLogger(t *testing.T) {
+	// Test that CookieStore operations log correctly
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug, // Enable debug level to see all logs
+	})
+	logger := slog.New(handler)
+
+	tempDir := t.TempDir()
+	store := &CookieStore{
+		Cookies:  make(map[string]*Cookie),
+		FilePath: filepath.Join(tempDir, "test_cookies.json"),
+		logger:   logger,
+	}
+
+	// Save cookies - should log at debug level
+	err := store.Save()
+	if err != nil {
+		t.Fatalf("Failed to save cookies: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "saving cookies") {
+		t.Errorf("Expected 'saving cookies' log message, got: %s", output)
+	}
+
+	// Clear buffer
+	buf.Reset()
+
+	// Load cookies - should log at debug level
+	_ = store.Load()
+
+	output = buf.String()
+	if !strings.Contains(output, "loading cookies") {
+		t.Errorf("Expected 'loading cookies' log message, got: %s", output)
+	}
+}
+
+func TestLoggerPropagation(t *testing.T) {
+	// Test that logger is properly propagated to CookieStore
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug, // Enable debug level to capture all logs
+	})
+	logger := slog.New(handler)
+
+	tempDir := t.TempDir()
+	config := ClientConfig{
+		CookieDir: tempDir,
+		Logger:    logger,
+	}
+
+	client, err := NewWalmartClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Verify CookieStore has logger
+	if client.CookieStore.logger == nil {
+		t.Fatal("CookieStore logger is nil")
+	}
+
+	// NewWalmartClient should have logged during initialization
+	output := buf.String()
+	if output == "" {
+		t.Errorf("Expected log output from client initialization, got: %s", output)
+	}
+
+	// Verify the logger has the client attribute
+	if !strings.Contains(output, "client=walmart") {
+		t.Errorf("Logger should have client=walmart attribute, got: %s", output)
 	}
 }
