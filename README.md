@@ -100,6 +100,63 @@ func main() {
 }
 ```
 
+### Logging
+
+The client supports optional logger injection using Go's standard `log/slog` package for structured logging:
+
+```go
+import (
+    "log/slog"
+    "os"
+    walmart "github.com/eshaffer321/walmart-client"
+)
+
+// Create a structured logger (JSON format)
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+// Pass logger to client
+config := walmart.ClientConfig{
+    RateLimit: 2 * time.Second,
+    Logger:    logger, // Optional - pass nil to disable logging
+}
+
+client, err := walmart.NewWalmartClient(config)
+```
+
+**Logging Modes:**
+
+```go
+// JSON structured logging (recommended for production)
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+// Text logging (human-readable, good for development)
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+// No logging (silent mode)
+config := walmart.ClientConfig{
+    Logger: nil, // All logs will be discarded
+}
+```
+
+**What Gets Logged:**
+
+All logs use structured key=value pairs for easy parsing and filtering:
+
+```json
+{"time":"2025-09-07T10:30:00Z","level":"INFO","msg":"cookie store initialized","client":"walmart","file_path":"~/.walmart-api/cookies.json","cookies_loaded":61}
+{"time":"2025-09-07T10:30:01Z","level":"INFO","msg":"fetching purchase history","client":"walmart","limit":10}
+{"time":"2025-09-07T10:30:02Z","level":"INFO","msg":"fetched purchase history","client":"walmart","order_count":10}
+{"time":"2025-09-07T10:30:03Z","level":"INFO","msg":"fetched order","client":"walmart","order_id":"123","total":185.83,"item_count":15}
+```
+
+**Log Levels:**
+- `INFO`: Normal operations (fetching orders, cookie updates, successful operations)
+- `WARN`: Recoverable issues (rate limits, stale cookies, missing data)
+- `ERROR`: Failures (network errors, auth failures, parse errors)
+- `DEBUG`: Detailed trace information (request/response details)
+
+All logs automatically include `client=walmart` attribute for filtering in multi-service environments.
+
 ### Available Methods
 ```go
 // Order operations

@@ -2,23 +2,28 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	walmart "github.com/eshaffer321/walmart-client"
 )
 
 func main() {
-	// Initialize the client with your saved cookies
+	// Create a structured logger (text format to stdout)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// Initialize the client with your saved cookies and logger
 	config := walmart.ClientConfig{
 		CookieFile: "cookies.json", // Path to your cookie file
 		RateLimit:  time.Second,
 		AutoSave:   true,
+		Logger:     logger, // Pass nil to disable all logging
 	}
 
 	client, err := walmart.NewWalmartClient(config)
 	if err != nil {
-		log.Fatal("Failed to create client:", err)
+		panic(fmt.Sprintf("Failed to create client: %v", err))
 	}
 
 	// Example order ID - replace with your actual order ID
@@ -27,7 +32,7 @@ func main() {
 	// Get the order ledger showing actual credit card charges
 	ledger, err := client.GetOrderLedger(orderID)
 	if err != nil {
-		log.Fatal("Failed to get order ledger:", err)
+		panic(fmt.Sprintf("Failed to get order ledger: %v", err))
 	}
 
 	// Display the ledger information

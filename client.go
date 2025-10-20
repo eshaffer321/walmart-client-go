@@ -69,7 +69,8 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 	// Initialize logger with client attribute
 	logger := config.Logger
 	if logger == nil {
-		logger = slog.Default()
+		// Use no-op logger that discards all output
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	logger = logger.With(slog.String("client", "walmart"))
 

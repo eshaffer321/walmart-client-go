@@ -3,14 +3,13 @@ package walmart
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 )
 
 // ExampleJSON shows how to get data as JSON
 func ExampleJSON() {
 	client, err := NewWalmartClient(ClientConfig{})
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Get orders
