@@ -180,7 +180,7 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 		slog.Int("order_count", len(historyResp.Data.OrderHistoryV2.OrderGroups)))
 
 	// Auto-save cookies after successful request
-	_ = c.CookieStore.Save()
+	_ = c.cookieStore.Save()
 
 	return &historyResp, nil
 }
