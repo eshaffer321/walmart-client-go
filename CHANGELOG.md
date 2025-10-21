@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Moved documentation files to `docs/` directory for cleaner root
+- Moved `CLAUDE.md` to `docs/CLAUDE.md`
+- Moved `RELEASING.md` to `docs/RELEASING.md`
+- Moved `MIGRATION.md` to `docs/MIGRATION.md`
+
+### Removed
+- `walmart-cli` binary (was mistakenly committed to git)
+- `RESTRUCTURE_SUMMARY.md` (temporary documentation artifact)
+- `CONTRIBUTING.md` (unnecessary for personal project)
+
+## [2.0.0] - 2025-10-20
+
+### Changed
 - **BREAKING:** Reorganized package structure for better maintainability
 - **BREAKING:** Moved `CookieStore` and `Cookie` types to `internal/cookies/` package
 - **BREAKING:** Removed example functions (`ExampleUsage`, `ExampleJSON`) from public API
@@ -17,10 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Package-level documentation in `doc.go`
-- `CLAUDE.md` - AI/human maintenance guide with release process
+- `docs/CLAUDE.md` - AI/human maintenance guide with release process
 - `CHANGELOG.md` - This file
-- `RELEASING.md` - Detailed release process guide
-- `MIGRATION.md` - Migration guide from v1 (pre-restructure) to v2
+- `docs/RELEASING.md` - Detailed release process guide
+- `docs/MIGRATION.md` - Migration guide from v1 (pre-restructure) to v2
 - `testdata/` directory for test fixtures
 - Proper Go Examples that appear in godoc
 
@@ -65,7 +78,7 @@ The following changes were made during initial development before formal version
 
 ## How to Release
 
-See [RELEASING.md](RELEASING.md) and [CLAUDE.md](CLAUDE.md) for detailed release instructions.
+See [docs/RELEASING.md](docs/RELEASING.md) and [docs/CLAUDE.md](docs/CLAUDE.md) for detailed release instructions.
 
 Quick reference:
 ```bash

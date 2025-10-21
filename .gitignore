@@ -45,6 +45,7 @@ secrets/
 
 # Build artifacts
 walmart
+walmart-cli
 cmd/walmart/walmart
 dist/
 build/
