@@ -1,4 +1,4 @@
-module github.com/eshaffer321/walmart-client
+module github.com/eshaffer321/walmart-client-go
 
 go 1.21
 
