@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for changelog generation
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+
+    - name: Run tests
+      run: go test -v -race ./...
+
+    - name: Run linting
+      run: |
+        go vet ./...
+        gofmt -l .
+        test -z "$(gofmt -l .)"
+
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Extract changelog for this version
+      id: changelog
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        # Extract the section for this version from CHANGELOG.md
+        awk "/^## \[${VERSION#v}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
+        if [ ! -s release_notes.md ]; then
+          echo "No changelog entry found for ${VERSION}" > release_notes.md
+        fi
+
+    - name: Build CLI binaries
+      run: |
+        # Build for multiple platforms
+        GOOS=linux GOARCH=amd64 go build -o walmart-cli-linux-amd64 ./cmd/walmart
+        GOOS=linux GOARCH=arm64 go build -o walmart-cli-linux-arm64 ./cmd/walmart
+        GOOS=darwin GOARCH=amd64 go build -o walmart-cli-darwin-amd64 ./cmd/walmart
+        GOOS=darwin GOARCH=arm64 go build -o walmart-cli-darwin-arm64 ./cmd/walmart
+        GOOS=windows GOARCH=amd64 go build -o walmart-cli-windows-amd64.exe ./cmd/walmart
+
+        # Create checksums
+        sha256sum walmart-cli-* > checksums.txt
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: release_notes.md
+        files: |
+          walmart-cli-linux-amd64
+          walmart-cli-linux-arm64
+          walmart-cli-darwin-amd64
+          walmart-cli-darwin-arm64
+          walmart-cli-windows-amd64.exe
+          checksums.txt
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Notify on success
+      if: success()
+      run: |
+        echo "✅ Release ${{ steps.version.outputs.VERSION }} created successfully!"
+        echo "📦 Binaries built for: linux, darwin, windows (amd64, arm64)"
+        echo "📝 Release notes extracted from CHANGELOG.md"
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Release workflow failed!"
+        echo "Please check the logs and ensure:"
+        echo "  - Tests pass"
+        echo "  - Code is formatted"
+        echo "  - CHANGELOG.md has entry for this version"

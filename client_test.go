@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshaffer321/walmart-client/internal/cookies"
 )
 
 func TestNewWalmartClient(t *testing.T) {
@@ -30,25 +32,22 @@ func TestNewWalmartClient(t *testing.T) {
 		t.Fatal("Client is nil")
 	}
 
-	if client.CookieStore == nil {
-		t.Fatal("CookieStore is nil")
+	if client.cookieStore == nil {
+		t.Fatal("cookieStore is nil")
 	}
 
 	expectedPath := filepath.Join(tempDir, "cookies.json")
-	if client.CookieStore.FilePath != expectedPath {
-		t.Errorf("Expected cookie path %s, got %s", expectedPath, client.CookieStore.FilePath)
+	if client.cookieStore.FilePath != expectedPath {
+		t.Errorf("Expected cookie path %s, got %s", expectedPath, client.cookieStore.FilePath)
 	}
 }
 
 func TestCookieStore(t *testing.T) {
 	tempDir := t.TempDir()
-	store := &CookieStore{
-		Cookies:  make(map[string]*Cookie),
-		FilePath: filepath.Join(tempDir, "test_cookies.json"),
-	}
+	store := cookies.NewStore(filepath.Join(tempDir, "test_cookies.json"), nil)
 
 	// Test Set and Get
-	cookie := &Cookie{
+	cookie := &cookies.Cookie{
 		Value:      "test_value",
 		LastUpdate: time.Now(),
 		Source:     "test",
@@ -72,10 +71,7 @@ func TestCookieStore(t *testing.T) {
 		t.Fatalf("Failed to save cookies: %v", err)
 	}
 
-	newStore := &CookieStore{
-		Cookies:  make(map[string]*Cookie),
-		FilePath: store.FilePath,
-	}
+	newStore := cookies.NewStore(store.FilePath, nil)
 
 	err = newStore.Load()
 	if err != nil {
@@ -97,7 +93,7 @@ func TestExtractCookiesFromCurl(t *testing.T) {
   -b 'cookie1=value1; cookie2=value2' \
   --cookie 'cookie3=value3'`
 
-	cookies := extractCookiesFromCurl(curlCommand)
+	extractedCookies := cookies.ExtractFromCurl(curlCommand)
 
 	expected := map[string]string{
 		"cookie1": "value1",
@@ -106,7 +102,7 @@ func TestExtractCookiesFromCurl(t *testing.T) {
 	}
 
 	for name, expectedValue := range expected {
-		if value, ok := cookies[name]; !ok {
+		if value, ok := extractedCookies[name]; !ok {
 			t.Errorf("Cookie %s not found", name)
 		} else if value != expectedValue {
 			t.Errorf("Cookie %s: expected %s, got %s", name, expectedValue, value)
@@ -167,7 +163,7 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 	client, _ := NewWalmartClient(config)
 
 	// Add initial cookie
-	client.CookieStore.Set("existing", &Cookie{
+	client.cookieStore.Set("existing", &cookies.Cookie{
 		Value:     "old_value",
 		Essential: true,
 	})
@@ -185,7 +181,7 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 	client.updateCookiesFromResponse(resp)
 
 	// Check existing cookie was updated
-	existing := client.CookieStore.Get("existing")
+	existing := client.cookieStore.Get("existing")
 	if existing == nil || existing.Value != "new_value" {
 		t.Error("Failed to update existing cookie")
 	}
@@ -194,7 +190,7 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 	}
 
 	// Check new cookie was added
-	newCookie := client.CookieStore.Get("new_cookie")
+	newCookie := client.cookieStore.Get("new_cookie")
 	if newCookie == nil || newCookie.Value != "value" {
 		t.Error("Failed to add new cookie from response")
 	}
@@ -259,8 +255,8 @@ func TestMockOrderRequest(t *testing.T) {
 	// so we'll just test that the request would be made correctly
 
 	// Add required cookies
-	client.CookieStore.Set("CID", &Cookie{Value: "test"})
-	client.CookieStore.Set("SPID", &Cookie{Value: "test"})
+	client.cookieStore.Set("CID", &cookies.Cookie{Value: "test"})
+	client.cookieStore.Set("SPID", &cookies.Cookie{Value: "test"})
 
 	// Since we can't override the endpoint builder, just verify the endpoint is built correctly
 	endpoint := client.buildOrderEndpoint("TEST123", true)
@@ -305,7 +301,7 @@ func TestInitializeFromCurl(t *testing.T) {
 	}
 
 	// Check essential cookies were loaded
-	cid := client.CookieStore.Get("CID")
+	cid := client.cookieStore.Get("CID")
 	if cid == nil || cid.Value != "test_cid" {
 		t.Error("CID cookie not loaded correctly")
 	}
@@ -313,7 +309,7 @@ func TestInitializeFromCurl(t *testing.T) {
 		t.Error("CID should be marked as essential")
 	}
 
-	spid := client.CookieStore.Get("SPID")
+	spid := client.cookieStore.Get("SPID")
 	if spid == nil || spid.Value != "test_spid" {
 		t.Error("SPID cookie not loaded correctly")
 	}
@@ -488,13 +484,13 @@ func TestWalmartClientWithoutLogger(t *testing.T) {
 
 	// Perform operations that would normally log
 	// These should not panic or crash
-	client.CookieStore.Set("test", &Cookie{
+	client.cookieStore.Set("test", &cookies.Cookie{
 		Value:  "test_value",
 		Source: "test",
 	})
 
 	// Save cookies (logs internally)
-	_ = client.CookieStore.Save()
+	_ = client.cookieStore.Save()
 
 	// If we got here without panicking, the test passes
 }
@@ -508,11 +504,7 @@ func TestCookieStoreWithLogger(t *testing.T) {
 	logger := slog.New(handler)
 
 	tempDir := t.TempDir()
-	store := &CookieStore{
-		Cookies:  make(map[string]*Cookie),
-		FilePath: filepath.Join(tempDir, "test_cookies.json"),
-		logger:   logger,
-	}
+	store := cookies.NewStore(filepath.Join(tempDir, "test_cookies.json"), logger)
 
 	// Save cookies - should log at debug level
 	err := store.Save()
@@ -557,7 +549,7 @@ func TestLoggerPropagation(t *testing.T) {
 	}
 
 	// Verify CookieStore has logger
-	if client.CookieStore.logger == nil {
+	if client.cookieStore == nil {
 		t.Fatal("CookieStore logger is nil")
 	}
 
