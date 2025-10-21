@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	walmart "github.com/eshaffer321/walmart-client"
+	walmart "github.com/eshaffer321/walmart-client-go"
 )
 
 func main() {

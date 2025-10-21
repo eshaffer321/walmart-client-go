@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eshaffer321/walmart-client/internal/cookies"
+	"github.com/eshaffer321/walmart-client-go/internal/cookies"
 )
 
 // WalmartClient provides access to Walmart's order history and purchase data API

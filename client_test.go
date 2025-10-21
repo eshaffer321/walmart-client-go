@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshaffer321/walmart-client/internal/cookies"
+	"github.com/eshaffer321/walmart-client-go/internal/cookies"
 )
 
 func TestNewWalmartClient(t *testing.T) {

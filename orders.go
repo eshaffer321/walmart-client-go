@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshaffer321/walmart-client/internal/cookies"
+	"github.com/eshaffer321/walmart-client-go/internal/cookies"
 )
 
 // GetOrder fetches an order with automatic cookie updates
