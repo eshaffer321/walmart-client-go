@@ -1,6 +1,7 @@
 package walmart
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -228,4 +229,79 @@ func (c *WalmartClient) ExportCookies() map[string]string {
 // SaveCookies persists the current cookie store to disk
 func (c *WalmartClient) SaveCookies() error {
 	return c.cookieStore.Save()
+}
+
+// executeGraphQLRequest executes an HTTP request with cookie management and response parsing
+// This is a common helper method used by GetOrder, GetPurchaseHistory, and other API methods
+func (c *WalmartClient) executeGraphQLRequest(req *http.Request, result interface{}) error {
+	// Rate limiting - only wait if not first request
+	if !c.lastRequest.IsZero() {
+		c.logger.Debug("waiting for rate limiter")
+		<-c.rateLimiter.C
+	}
+	c.lastRequest = time.Now()
+
+	// Set cookies from store
+	c.setCookies(req)
+
+	c.logger.Debug("executing graphql request",
+		slog.String("url", req.URL.String()),
+		slog.String("method", req.Method))
+
+	// Execute request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.logger.Error("request failed",
+			slog.String("error", err.Error()))
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	c.logger.Debug("received response",
+		slog.Int("status_code", resp.StatusCode))
+
+	// Update cookies from response
+	c.updateCookiesFromResponse(resp)
+
+	// Read body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error("failed to read response",
+			slog.String("error", err.Error()))
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	c.logger.Debug("response received",
+		slog.Int("response_size", len(body)))
+
+	// Check status
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == 429 {
+			c.logger.Warn("rate limited",
+				slog.Int("status_code", resp.StatusCode))
+			return fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
+		}
+		if resp.StatusCode == 403 || resp.StatusCode == 418 {
+			c.logger.Warn("access denied",
+				slog.Int("status_code", resp.StatusCode))
+			return fmt.Errorf("access denied - cookies expired, please update from browser")
+		}
+		c.logger.Warn("non-200 response",
+			slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response if result is provided
+	if result != nil {
+		if err := json.Unmarshal(body, result); err != nil {
+			c.logger.Error("failed to parse response",
+				slog.String("error", err.Error()))
+			return fmt.Errorf("failed to parse response: %w", err)
+		}
+	}
+
+	// Auto-save cookies after successful request
+	_ = c.cookieStore.Save()
+
+	return nil
 }

@@ -3,7 +3,6 @@ package walmart
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -15,19 +14,11 @@ import (
 
 // GetOrder fetches an order with automatic cookie updates
 func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error) {
-	// Rate limiting - only wait if not first request
-	if !c.lastRequest.IsZero() {
-		c.logger.Debug("waiting for rate limiter")
-		<-c.rateLimiter.C
-	}
-	c.lastRequest = time.Now()
-
 	endpoint := c.buildOrderEndpoint(orderID, isInStore)
 
 	c.logger.Debug("fetching order",
 		slog.String("order_id", orderID),
-		slog.Bool("is_in_store", isInStore),
-		slog.String("endpoint", endpoint))
+		slog.Bool("is_in_store", isInStore))
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -40,66 +31,10 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	// Set headers
 	c.setHeaders(req)
 
-	// Set cookies from store
-	c.setCookies(req)
-
-	// Execute request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		c.logger.Error("request failed",
-			slog.String("order_id", orderID),
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	c.logger.Debug("received response",
-		slog.String("order_id", orderID),
-		slog.Int("status_code", resp.StatusCode))
-
-	// Update cookies from response
-	c.updateCookiesFromResponse(resp)
-
-	// Read body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Error("failed to read response",
-			slog.String("order_id", orderID),
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	c.logger.Debug("response received",
-		slog.String("order_id", orderID),
-		slog.Int("response_size", len(body)))
-
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 429 {
-			c.logger.Warn("rate limited",
-				slog.String("order_id", orderID),
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
-		}
-		if resp.StatusCode == 403 || resp.StatusCode == 418 {
-			c.logger.Warn("access denied",
-				slog.String("order_id", orderID),
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("access denied - cookies expired, please update from browser")
-		}
-		c.logger.Warn("non-200 response",
-			slog.String("order_id", orderID),
-			slog.Int("status_code", resp.StatusCode))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
+	// Execute request with common logic
 	var orderResp OrderResponse
-	if err := json.Unmarshal(body, &orderResp); err != nil {
-		c.logger.Error("failed to parse response",
-			slog.String("order_id", orderID),
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+	if err := c.executeGraphQLRequest(req, &orderResp); err != nil {
+		return nil, err
 	}
 
 	if orderResp.Data.Order == nil {
@@ -125,9 +60,6 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 		slog.Bool("is_in_store", isInStore),
 		slog.Float64("total", total),
 		slog.Int("item_count", order.GetItemCount()))
-
-	// Auto-save cookies after successful request
-	_ = c.cookieStore.Save()
 
 	return order, nil
 }

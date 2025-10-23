@@ -3,7 +3,6 @@ package walmart
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -82,13 +81,6 @@ type ItemSummary struct {
 
 // GetPurchaseHistory fetches the purchase history with optional filters
 func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*PurchaseHistoryResponse, error) {
-	// Rate limiting
-	if !c.lastRequest.IsZero() {
-		c.logger.Debug("waiting for rate limiter")
-		<-c.rateLimiter.C
-	}
-	c.lastRequest = time.Now()
-
 	// Set defaults
 	if req.Limit == 0 {
 		req.Limit = 10
@@ -109,9 +101,6 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 
 	endpoint := c.buildPurchaseHistoryEndpoint(req)
 
-	c.logger.Debug("purchase history request",
-		slog.String("endpoint", endpoint))
-
 	httpReq, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		c.logger.Error("failed to create request",
@@ -122,65 +111,14 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 	// Set headers (reuse existing method but adjust for purchase history)
 	c.setPurchaseHistoryHeaders(httpReq)
 
-	// Set cookies from store
-	c.setCookies(httpReq)
-
-	// Execute request
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		c.logger.Error("request failed",
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	c.logger.Debug("received response",
-		slog.Int("status_code", resp.StatusCode))
-
-	// Update cookies from response
-	c.updateCookiesFromResponse(resp)
-
-	// Read body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Error("failed to read response",
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	c.logger.Debug("response received",
-		slog.Int("response_size", len(body)))
-
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 429 {
-			c.logger.Warn("rate limited",
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
-		}
-		if resp.StatusCode == 403 || resp.StatusCode == 418 {
-			c.logger.Warn("access denied",
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("access denied - cookies expired, please update from browser")
-		}
-		c.logger.Warn("non-200 response",
-			slog.Int("status_code", resp.StatusCode))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
+	// Execute request with common logic
 	var historyResp PurchaseHistoryResponse
-	if err := json.Unmarshal(body, &historyResp); err != nil {
-		c.logger.Error("failed to parse response",
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+	if err := c.executeGraphQLRequest(httpReq, &historyResp); err != nil {
+		return nil, err
 	}
 
 	c.logger.Info("fetched purchase history",
 		slog.Int("order_count", len(historyResp.Data.OrderHistoryV2.OrderGroups)))
-
-	// Auto-save cookies after successful request
-	_ = c.cookieStore.Save()
 
 	return &historyResp, nil
 }

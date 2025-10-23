@@ -564,3 +564,207 @@ func TestLoggerPropagation(t *testing.T) {
 		t.Errorf("Logger should have client=walmart attribute, got: %s", output)
 	}
 }
+
+func TestExecuteGraphQLRequest(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		responseBody   interface{}
+		expectedError  string
+		setupClient    func(*WalmartClient)
+		validateResult func(*testing.T, *OrderResponse)
+	}{
+		{
+			name:       "successful request",
+			statusCode: 200,
+			responseBody: OrderResponse{
+				Data: struct {
+					Order *Order `json:"order"`
+				}{
+					Order: &Order{
+						ID:        "TEST123",
+						DisplayID: "WM-TEST123",
+						OrderDate: "2024-01-01T12:00:00.000-0700",
+					},
+				},
+			},
+			setupClient: func(c *WalmartClient) {
+				c.cookieStore.Set("test", &cookies.Cookie{Value: "value"})
+			},
+			validateResult: func(t *testing.T, resp *OrderResponse) {
+				if resp.Data.Order == nil {
+					t.Fatal("Expected order in response, got nil")
+				}
+				if resp.Data.Order.ID != "TEST123" {
+					t.Errorf("Expected order ID TEST123, got %s", resp.Data.Order.ID)
+				}
+			},
+		},
+		{
+			name:          "rate limit error",
+			statusCode:    429,
+			responseBody:  `{"error": "rate limited"}`,
+			expectedError: "rate limited",
+		},
+		{
+			name:          "forbidden error",
+			statusCode:    403,
+			responseBody:  `{"error": "forbidden"}`,
+			expectedError: "access denied",
+		},
+		{
+			name:          "teapot error",
+			statusCode:    418,
+			responseBody:  `{"error": "I'm a teapot"}`,
+			expectedError: "access denied",
+		},
+		{
+			name:          "server error",
+			statusCode:    500,
+			responseBody:  `{"error": "internal server error"}`,
+			expectedError: "HTTP 500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify cookies are set
+				if r.Header.Get("Cookie") == "" && tt.setupClient != nil {
+					t.Error("Expected cookies to be set in request")
+				}
+
+				// Set response status
+				w.WriteHeader(tt.statusCode)
+
+				// Write response body
+				if resp, ok := tt.responseBody.(OrderResponse); ok {
+					json.NewEncoder(w).Encode(resp)
+				} else if body, ok := tt.responseBody.(string); ok {
+					w.Write([]byte(body))
+				}
+			}))
+			defer server.Close()
+
+			// Create client
+			tempDir := t.TempDir()
+			client, _ := NewWalmartClient(ClientConfig{
+				CookieDir: tempDir,
+				RateLimit: 0, // Disable rate limiting for tests
+			})
+			client.httpClient = server.Client()
+
+			// Setup client if needed
+			if tt.setupClient != nil {
+				tt.setupClient(client)
+			}
+
+			// Create request
+			req, _ := http.NewRequest("GET", server.URL, nil)
+
+			// Execute request
+			var result OrderResponse
+			err := client.executeGraphQLRequest(req, &result)
+
+			// Check error expectation
+			if tt.expectedError != "" {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tt.expectedError)
+				} else if !strings.Contains(err.Error(), tt.expectedError) {
+					t.Errorf("Expected error containing '%s', got '%s'", tt.expectedError, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+				if tt.validateResult != nil {
+					tt.validateResult(t, &result)
+				}
+			}
+		})
+	}
+}
+
+func TestExecuteGraphQLRequestRateLimiting(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(OrderResponse{
+			Data: struct {
+				Order *Order `json:"order"`
+			}{
+				Order: &Order{ID: "TEST"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	client, _ := NewWalmartClient(ClientConfig{
+		CookieDir: tempDir,
+		RateLimit: 100 * time.Millisecond,
+	})
+	client.httpClient = server.Client()
+
+	// First request should be immediate
+	start := time.Now()
+	req1, _ := http.NewRequest("GET", server.URL, nil)
+	var result Order
+	_ = client.executeGraphQLRequest(req1, &result)
+	firstDuration := time.Since(start)
+
+	// Second request should wait for rate limiter
+	start = time.Now()
+	req2, _ := http.NewRequest("GET", server.URL, nil)
+	_ = client.executeGraphQLRequest(req2, &result)
+	secondDuration := time.Since(start)
+
+	// Second request should take at least the rate limit duration
+	if secondDuration < 100*time.Millisecond {
+		t.Errorf("Expected second request to be rate limited (>= 100ms), took %v", secondDuration)
+	}
+
+	// First request should be faster
+	if firstDuration > 50*time.Millisecond {
+		t.Logf("Warning: First request took %v, expected to be immediate", firstDuration)
+	}
+}
+
+func TestExecuteGraphQLRequestCookieUpdate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Send back updated cookies
+		w.Header().Set("Set-Cookie", "updated_cookie=new_value; Path=/")
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(OrderResponse{
+			Data: struct {
+				Order *Order `json:"order"`
+			}{
+				Order: &Order{ID: "TEST"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	client, _ := NewWalmartClient(ClientConfig{
+		CookieDir: tempDir,
+	})
+	client.httpClient = server.Client()
+
+	// Execute request
+	req, _ := http.NewRequest("GET", server.URL, nil)
+	var result Order
+	err := client.executeGraphQLRequest(req, &result)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+
+	// Verify cookie was updated
+	updated := client.cookieStore.Get("updated_cookie")
+	if updated == nil {
+		t.Error("Expected cookie to be updated from response")
+	} else if updated.Value != "new_value" {
+		t.Errorf("Expected cookie value 'new_value', got '%s'", updated.Value)
+	}
+}
