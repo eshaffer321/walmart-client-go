@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2025-10-22
+
 ### Changed
 - Moved documentation files to `docs/` directory for cleaner root
 - Moved `CLAUDE.md` to `docs/CLAUDE.md`
@@ -18,22 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RESTRUCTURE_SUMMARY.md` (temporary documentation artifact)
 - `CONTRIBUTING.md` (unnecessary for personal project)
 
-## [2.0.0] - 2025-10-20
+## [1.0.1] - 2025-10-20
 
 ### Changed
-- **BREAKING:** Reorganized package structure for better maintainability
-- **BREAKING:** Moved `CookieStore` and `Cookie` types to `internal/cookies/` package
-- **BREAKING:** Removed example functions (`ExampleUsage`, `ExampleJSON`) from public API
+- Reorganized package structure for better maintainability
+- Moved `CookieStore` and `Cookie` types to `internal/cookies/` package
 - Split `client.go` into logical files (`client.go`, `config.go`, `orders.go`)
 - Renamed files for clarity (`purchase_history.go` → `purchases.go`, `orderledger.go` → `ledger.go`)
 - Improved file organization with `examples/`, `testdata/`, and `internal/` directories
 
 ### Added
 - Package-level documentation in `doc.go`
-- `docs/CLAUDE.md` - AI/human maintenance guide with release process
+- `CLAUDE.md` - AI/human maintenance guide with release process
 - `CHANGELOG.md` - This file
-- `docs/RELEASING.md` - Detailed release process guide
-- `docs/MIGRATION.md` - Migration guide from v1 (pre-restructure) to v2
+- `RELEASING.md` - Detailed release process guide
+- `MIGRATION.md` - Migration guide for restructured code
 - `testdata/` directory for test fixtures
 - Proper Go Examples that appear in godoc
 
@@ -42,7 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `example_json.go` - Converted to proper Go examples
 - `test_tip.go` - Converted to standard test helpers
 
-## [Prehistory] - Pre-v2.0.0
+### Fixed
+- Module path corrected to `github.com/eshaffer321/walmart-client-go`
+- All internal imports updated to use correct module path
+
+## [Prehistory] - Pre-v1.0.0
 
 The following changes were made during initial development before formal versioning:
 
@@ -73,8 +78,10 @@ The following changes were made during initial development before formal version
 
 ## Release Naming Convention
 
-- **v2.x.x** - Current clean architecture
-- **v1.x.x** - Never officially tagged (pre-restructure commits)
+- **v1.x.x** - Current stable release series
+- **v1.0.2** - Latest (documentation cleanup)
+- **v1.0.1** - Clean architecture with internal packages
+- **Pre-v1.0.1** - Untagged development commits
 
 ## How to Release
 
@@ -87,11 +94,11 @@ Quick reference:
 make pre-commit
 
 # 3. Tag and push
-git tag -a v2.0.0 -m "Release v2.0.0: Clean architecture"
-git push origin v2.0.0
+git tag -a v1.0.3 -m "Release v1.0.3: Description"
+git push origin v1.0.3
 
 # 4. Create GitHub release
-gh release create v2.0.0 --generate-notes
+gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.2...HEAD
