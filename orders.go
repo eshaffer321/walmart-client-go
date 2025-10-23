@@ -298,7 +298,7 @@ func (c *WalmartClient) updateCookiesFromResponse(resp *http.Response) {
 	}
 
 	if updatedCount > 0 {
-		c.logger.Info("cookies updated from response",
+		c.logger.Debug("cookies updated from response",
 			slog.Int("updated_count", updatedCount))
 	}
 }
