@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2025-10-25
+
+### Fixed
+- **CRITICAL:** Fixed `GetOrderLedger()` URL construction to properly URL-encode JSON variables
+- Variables parameter now uses `url.Values` and `params.Encode()` like other working endpoints
+- This was the root cause of 429 errors - malformed URLs were rejected by Walmart's API
+- Previous fix (v1.0.3) added rate limiting but didn't address the URL encoding issue
+
 ## [1.0.3] - 2025-10-25
 
 ### Fixed
@@ -109,5 +117,6 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.2...v1.0.3

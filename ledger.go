@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -81,14 +82,22 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 	// Use the hash from the provided URL
 	const ledgerHash = "1234d48bfc5e62b608c0dae2c5752f31978870456bcf0023bad3988009e70919"
 
-	url := fmt.Sprintf("https://www.walmart.com/orchestra/orders/graphql/getOrderLedger/%s?variables={\"orderId\":\"%s\"}",
-		ledgerHash, orderID)
+	// Build variables JSON and properly URL-encode it
+	variables := map[string]string{
+		"orderId": orderID,
+	}
+	variablesJSON, _ := json.Marshal(variables)
+	params := url.Values{}
+	params.Set("variables", string(variablesJSON))
+
+	endpoint := fmt.Sprintf("https://www.walmart.com/orchestra/orders/graphql/getOrderLedger/%s?%s",
+		ledgerHash, params.Encode())
 
 	c.logger.Debug("order ledger request",
 		slog.String("order_id", orderID),
-		slog.String("endpoint", url))
+		slog.String("endpoint", endpoint))
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		c.logger.Error("failed to create request",
 			slog.String("order_id", orderID),
