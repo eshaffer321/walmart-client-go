@@ -38,7 +38,7 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	}
 
 	// Set headers
-	c.setHeaders(req)
+	c.setHeaders(req, "getOrder")
 
 	// Set cookies from store
 	c.setCookies(req)
@@ -217,14 +217,14 @@ func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) strin
 }
 
 // setHeaders sets standard HTTP headers required by Walmart's API
-func (c *WalmartClient) setHeaders(req *http.Request) {
+func (c *WalmartClient) setHeaders(req *http.Request, operationName string) {
 	headers := map[string]string{
 		"accept":                  "application/json",
 		"accept-language":         "en-US",
 		"content-type":            "application/json",
 		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-		"x-apollo-operation-name": "getOrder",
-		"x-o-gql-query":           "query getOrder",
+		"x-apollo-operation-name": operationName,
+		"x-o-gql-query":           fmt.Sprintf("query %s", operationName),
 		"x-o-platform":            "rweb",
 		"x-o-bu":                  "WALMART-US",
 		"x-o-mart":                "B2C",

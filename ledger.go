@@ -106,7 +106,7 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 	}
 
 	// Set headers using the client's cookie management
-	c.setHeaders(req)
+	c.setHeaders(req, "getOrderLedger")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
