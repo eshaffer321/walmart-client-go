@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Added rate limiting to `GetOrderLedger()` to prevent 429 (Too Many Requests) errors (#10)
+- Added proper error handling for 429 and 403/418 status codes in `GetOrderLedger()`
+- Added cookie management to `GetOrderLedger()` to maintain fresh session state
+- Fixed issue where ledger requests would fail immediately after successful order fetches
+
 ## [1.0.2] - 2025-10-22
 
 ### Changed
