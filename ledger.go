@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // OrderLedger represents simplified order payment information
@@ -67,6 +68,13 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 		return nil, fmt.Errorf("order ID is required")
 	}
 
+	// Rate limiting - only wait if not first request
+	if !c.lastRequest.IsZero() {
+		c.logger.Debug("waiting for rate limiter", slog.String("client", "walmart"))
+		<-c.rateLimiter.C
+	}
+	c.lastRequest = time.Now()
+
 	c.logger.Debug("fetching order ledger",
 		slog.String("order_id", orderID))
 
@@ -104,7 +112,23 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 		slog.String("order_id", orderID),
 		slog.Int("status_code", resp.StatusCode))
 
+	// Update cookies from response
+	c.updateCookiesFromResponse(resp)
+
+	// Check status
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == 429 {
+			c.logger.Warn("rate limited",
+				slog.String("order_id", orderID),
+				slog.Int("status_code", resp.StatusCode))
+			return nil, fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
+		}
+		if resp.StatusCode == 403 || resp.StatusCode == 418 {
+			c.logger.Warn("access denied",
+				slog.String("order_id", orderID),
+				slog.Int("status_code", resp.StatusCode))
+			return nil, fmt.Errorf("access denied (cookies might be stale) - try refreshing from browser")
+		}
 		c.logger.Warn("non-200 response",
 			slog.String("order_id", orderID),
 			slog.Int("status_code", resp.StatusCode))
