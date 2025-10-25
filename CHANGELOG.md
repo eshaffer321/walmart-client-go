@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2025-10-25
+
 ### Fixed
 - Added rate limiting to `GetOrderLedger()` to prevent 429 (Too Many Requests) errors (#10)
 - Added proper error handling for 429 and 403/418 status codes in `GetOrderLedger()`
@@ -107,4 +109,5 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.2...v1.0.3
