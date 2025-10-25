@@ -408,6 +408,122 @@ func TestGetOrderLedger(t *testing.T) {
 	}
 }
 
+// TestGetOrderLedgerRateLimiting verifies rate limiting behavior
+func TestGetOrderLedgerRateLimiting(t *testing.T) {
+	requestTimes := []time.Time{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestTimes = append(requestTimes, time.Now())
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"data": {
+				"getOrderLedger": {
+					"paymentMethodsLedgers": []
+				}
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	config := ClientConfig{
+		RateLimit: 100 * time.Millisecond, // 100ms between requests
+		AutoSave:  false,
+	}
+	client, err := NewWalmartClient(config)
+	require.NoError(t, err)
+
+	client.httpClient = &http.Client{
+		Transport: &testTransport{
+			serverURL: server.URL,
+		},
+	}
+
+	// Make 3 ledger requests
+	for i := 0; i < 3; i++ {
+		_, err := client.GetOrderLedger("test-order")
+		require.NoError(t, err)
+	}
+
+	// Verify timing: first request immediate, subsequent requests delayed
+	require.Len(t, requestTimes, 3)
+
+	// First request should be immediate (no delay)
+	// Second request should be ~100ms after first
+	timeDiff1 := requestTimes[1].Sub(requestTimes[0])
+	assert.GreaterOrEqual(t, timeDiff1.Milliseconds(), int64(90), "Second request should wait ~100ms")
+
+	// Third request should be ~100ms after second
+	timeDiff2 := requestTimes[2].Sub(requestTimes[1])
+	assert.GreaterOrEqual(t, timeDiff2.Milliseconds(), int64(90), "Third request should wait ~100ms")
+}
+
+// TestGetOrderLedger429Response verifies 429 error handling
+func TestGetOrderLedger429Response(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"error": "rate limited"}`))
+	}))
+	defer server.Close()
+
+	config := ClientConfig{
+		RateLimit: time.Millisecond * 10,
+		AutoSave:  false,
+	}
+	client, err := NewWalmartClient(config)
+	require.NoError(t, err)
+
+	client.httpClient = &http.Client{
+		Transport: &testTransport{
+			serverURL: server.URL,
+		},
+	}
+
+	ledger, err := client.GetOrderLedger("test-order")
+	require.Error(t, err)
+	assert.Nil(t, ledger)
+	assert.Contains(t, err.Error(), "rate limited")
+	assert.Contains(t, err.Error(), "cookies might be stale")
+}
+
+// TestGetOrderLedger403Response verifies 403/418 error handling
+func TestGetOrderLedger403Response(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+	}{
+		{"forbidden 403", http.StatusForbidden},
+		{"teapot 418", http.StatusTeapot},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(`{"error": "access denied"}`))
+			}))
+			defer server.Close()
+
+			config := ClientConfig{
+				RateLimit: time.Millisecond * 10,
+				AutoSave:  false,
+			}
+			client, err := NewWalmartClient(config)
+			require.NoError(t, err)
+
+			client.httpClient = &http.Client{
+				Transport: &testTransport{
+					serverURL: server.URL,
+				},
+			}
+
+			ledger, err := client.GetOrderLedger("test-order")
+			require.Error(t, err)
+			assert.Nil(t, ledger)
+			assert.Contains(t, err.Error(), "access denied")
+			assert.Contains(t, err.Error(), "cookies might be stale")
+		})
+	}
+}
+
 func TestParseAmount(t *testing.T) {
 	tests := []struct {
 		name     string
