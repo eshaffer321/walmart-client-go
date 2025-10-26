@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2025-10-26
+
+### Fixed
+- **CRITICAL:** Added missing `setCookies()` call in `GetOrderLedger()`
+- Ledger requests were being sent without authentication cookies
+- This caused Walmart's bot detection to return empty responses
+- Multi-delivery order tracking now works correctly with populated payment methods
+- Matches the pattern used in `GetOrder()` and other working endpoints
+
 ## [1.0.6] - 2025-10-25
 
 ### Added
@@ -147,7 +156,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.3...v1.0.4

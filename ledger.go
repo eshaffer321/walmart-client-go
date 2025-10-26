@@ -124,6 +124,9 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 		// Set headers
 		c.setHeaders(req, "getOrderLedger")
 
+		// Set cookies from store
+		c.setCookies(req)
+
 		// Execute request
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
