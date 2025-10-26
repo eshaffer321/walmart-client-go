@@ -465,8 +465,9 @@ func TestGetOrderLedger429Response(t *testing.T) {
 	defer server.Close()
 
 	config := ClientConfig{
-		RateLimit: time.Millisecond * 10,
-		AutoSave:  false,
+		RateLimit:  time.Millisecond * 10,
+		AutoSave:   false,
+		MaxRetries: -1, // Disable retries for this test
 	}
 	client, err := NewWalmartClient(config)
 	require.NoError(t, err)
@@ -481,7 +482,6 @@ func TestGetOrderLedger429Response(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, ledger)
 	assert.Contains(t, err.Error(), "rate limited")
-	assert.Contains(t, err.Error(), "cookies might be stale")
 }
 
 // TestGetOrderLedger403Response verifies 403/418 error handling

@@ -63,21 +63,20 @@ type RowLine struct {
 	Time          string   `json:"time"`
 }
 
-// GetOrderLedger fetches the payment ledger for an order showing actual charges
+// GetOrderLedger fetches the payment ledger for an order showing actual charges.
+// This endpoint has stricter rate limits than other endpoints, so it uses a separate
+// rate limiter and implements retry logic with exponential backoff for 429 errors.
 func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 	if orderID == "" {
 		return nil, fmt.Errorf("order ID is required")
 	}
 
-	// Rate limiting - only wait if not first request
-	if !c.lastRequest.IsZero() {
-		c.logger.Debug("waiting for rate limiter", slog.String("client", "walmart"))
-		<-c.rateLimiter.C
+	// Use ledger-specific rate limiter (stricter than regular rate limit)
+	if !c.lastLedgerRequest.IsZero() {
+		c.logger.Debug("waiting for ledger rate limiter")
+		<-c.ledgerRateLimiter.C
 	}
-	c.lastRequest = time.Now()
-
-	c.logger.Debug("fetching order ledger",
-		slog.String("order_id", orderID))
+	c.lastLedgerRequest = time.Now()
 
 	// Use the hash from the provided URL
 	const ledgerHash = "1234d48bfc5e62b608c0dae2c5752f31978870456bcf0023bad3988009e70919"
@@ -93,73 +92,108 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 	endpoint := fmt.Sprintf("https://www.walmart.com/orchestra/orders/graphql/getOrderLedger/%s?%s",
 		ledgerHash, params.Encode())
 
-	c.logger.Debug("order ledger request",
-		slog.String("order_id", orderID),
-		slog.String("endpoint", endpoint))
-
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		c.logger.Error("failed to create request",
-			slog.String("order_id", orderID),
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("creating request: %w", err)
+	// Retry loop with exponential backoff for 429 errors
+	var lastErr error
+	maxRetries := c.maxRetries
+	if maxRetries < 0 {
+		maxRetries = 0 // Disable retries if set to -1
 	}
 
-	// Set headers using the client's cookie management
-	c.setHeaders(req, "getOrderLedger")
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 5s, 10s, 20s, 40s...
+			backoff := time.Duration(5*(1<<uint(attempt-1))) * time.Second
+			c.logger.Info("retrying after backoff",
+				slog.String("order_id", orderID),
+				slog.Int("attempt", attempt),
+				slog.Int("max_retries", maxRetries),
+				slog.Duration("backoff", backoff))
+			time.Sleep(backoff)
+		}
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		c.logger.Error("request failed",
+		c.logger.Debug("fetching order ledger",
 			slog.String("order_id", orderID),
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer resp.Body.Close()
+			slog.Int("attempt", attempt+1),
+			slog.Int("max_attempts", maxRetries+1))
 
-	c.logger.Debug("received response",
-		slog.String("order_id", orderID),
-		slog.Int("status_code", resp.StatusCode))
+		req, err := http.NewRequest("GET", endpoint, nil)
+		if err != nil {
+			return nil, fmt.Errorf("creating request: %w", err)
+		}
 
-	// Update cookies from response
-	c.updateCookiesFromResponse(resp)
+		// Set headers
+		c.setHeaders(req, "getOrderLedger")
 
-	// Check status
-	if resp.StatusCode != http.StatusOK {
+		// Execute request
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			c.logger.Error("request failed",
+				slog.String("order_id", orderID),
+				slog.String("error", err.Error()))
+			return nil, fmt.Errorf("executing request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		c.logger.Debug("received response",
+			slog.String("order_id", orderID),
+			slog.Int("status_code", resp.StatusCode),
+			slog.Int("attempt", attempt+1))
+
+		// Update cookies from response
+		c.updateCookiesFromResponse(resp)
+
+		// Handle 429 - retry with backoff
 		if resp.StatusCode == 429 {
-			c.logger.Warn("rate limited",
+			lastErr = fmt.Errorf("rate limited (attempt %d/%d)", attempt+1, maxRetries+1)
+			c.logger.Warn("rate limited, will retry",
+				slog.String("order_id", orderID),
+				slog.Int("attempt", attempt+1),
+				slog.Int("max_attempts", maxRetries+1))
+			continue // Retry
+		}
+
+		// Handle other non-OK statuses (don't retry)
+		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode == 403 || resp.StatusCode == 418 {
+				c.logger.Warn("access denied",
+					slog.String("order_id", orderID),
+					slog.Int("status_code", resp.StatusCode))
+				return nil, fmt.Errorf("access denied (cookies might be stale) - try refreshing from browser")
+			}
+			c.logger.Warn("non-200 response",
 				slog.String("order_id", orderID),
 				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
+			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		if resp.StatusCode == 403 || resp.StatusCode == 418 {
-			c.logger.Warn("access denied",
+
+		// Success! Parse and return the response
+		var ledgerResp OrderLedgerResponse
+		if err := json.NewDecoder(resp.Body).Decode(&ledgerResp); err != nil {
+			c.logger.Error("failed to parse response",
 				slog.String("order_id", orderID),
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("access denied (cookies might be stale) - try refreshing from browser")
+				slog.String("error", err.Error()))
+			return nil, fmt.Errorf("decoding response: %w", err)
 		}
-		c.logger.Warn("non-200 response",
+
+		// Convert to simplified structure
+		ledger := convertToOrderLedger(orderID, ledgerResp)
+
+		c.logger.Info("fetched order ledger",
 			slog.String("order_id", orderID),
-			slog.Int("status_code", resp.StatusCode))
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+			slog.Int("payment_method_count", len(ledger.PaymentMethods)),
+			slog.Int("attempt", attempt+1))
+
+		return ledger, nil
 	}
 
-	var ledgerResp OrderLedgerResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ledgerResp); err != nil {
-		c.logger.Error("failed to parse response",
-			slog.String("order_id", orderID),
-			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	// Convert to simplified structure
-	ledger := convertToOrderLedger(orderID, ledgerResp)
-
-	c.logger.Info("fetched order ledger",
+	// All retries exhausted
+	c.logger.Error("all retries exhausted",
 		slog.String("order_id", orderID),
-		slog.Int("payment_method_count", len(ledger.PaymentMethods)))
-
-	return ledger, nil
+		slog.Int("max_retries", maxRetries))
+	if lastErr != nil {
+		return nil, fmt.Errorf("after %d retries: %w", maxRetries, lastErr)
+	}
+	return nil, fmt.Errorf("failed after %d attempts", maxRetries+1)
 }
 
 // convertToOrderLedger converts the raw API response to a simplified structure

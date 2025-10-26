@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2025-10-25
+
+### Added
+- **New Config Options** for better ledger API handling:
+  - `LedgerRateLimit`: Separate rate limit for ledger API (stricter than regular rate limit)
+  - `MaxRetries`: Configurable retry count with exponential backoff (default: 3)
+- **Automatic Retry Logic** with exponential backoff for 429 errors in `GetOrderLedger()`
+  - Retries with delays: 5s, 10s, 20s, 40s, etc.
+  - Helps handle Walmart's stricter rate limits on the ledger endpoint
+
+### Changed
+- `GetOrderLedger()` now uses a separate ledger-specific rate limiter
+- Better logging for retry attempts and backoff periods
+- Updated tests to handle new retry behavior
+
+### Fixed
+- Addresses persistent 429 errors when calling `GetOrderLedger()` multiple times
+- Ledger endpoint no longer shares rate limit budget with order fetching
+- More resilient to temporary rate limiting
+
 ## [1.0.5] - 2025-10-25
 
 ### Fixed
@@ -127,7 +147,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.2...v1.0.3

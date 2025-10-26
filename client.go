@@ -15,12 +15,15 @@ import (
 
 // WalmartClient provides access to Walmart's order history and purchase data API
 type WalmartClient struct {
-	httpClient  *http.Client
-	cookieStore *cookies.Store
-	rateLimiter *time.Ticker
-	lastRequest time.Time
-	mu          sync.RWMutex
-	logger      *slog.Logger
+	httpClient        *http.Client
+	cookieStore       *cookies.Store
+	rateLimiter       *time.Ticker
+	ledgerRateLimiter *time.Ticker
+	lastRequest       time.Time
+	lastLedgerRequest time.Time
+	maxRetries        int
+	mu                sync.RWMutex
+	logger            *slog.Logger
 }
 
 // NewWalmartClient creates a new Walmart API client with the given configuration
@@ -37,6 +40,18 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 
 	if config.RateLimit == 0 {
 		config.RateLimit = 2 * time.Second
+	}
+
+	// Set ledger rate limit (defaults to regular rate limit if not specified)
+	ledgerRate := config.LedgerRateLimit
+	if ledgerRate == 0 {
+		ledgerRate = config.RateLimit
+	}
+
+	// Set max retries (defaults to 3 if not specified)
+	maxRetries := config.MaxRetries
+	if maxRetries == 0 {
+		maxRetries = 3
 	}
 
 	// Initialize logger with client attribute
@@ -67,9 +82,11 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 				return http.ErrUseLastResponse
 			},
 		},
-		cookieStore: store,
-		rateLimiter: time.NewTicker(config.RateLimit),
-		logger:      logger,
+		cookieStore:       store,
+		rateLimiter:       time.NewTicker(config.RateLimit),
+		ledgerRateLimiter: time.NewTicker(ledgerRate),
+		maxRetries:        maxRetries,
+		logger:            logger,
 	}
 
 	return client, nil
