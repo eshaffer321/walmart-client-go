@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshaffer321/walmart-client-go/internal/cookies"
+	"github.com/eshaffer321/walmart-client-go/internal/transport"
 )
 
 func TestNewWalmartClient(t *testing.T) {
@@ -493,6 +495,160 @@ func TestWalmartClientWithoutLogger(t *testing.T) {
 	_ = client.cookieStore.Save()
 
 	// If we got here without panicking, the test passes
+}
+
+// TestAllEndpointsApplyCookies is a critical safety net test that validates
+// cookies are sent with EVERY API endpoint. This test would have caught the
+// bug where setCookies() was missing from GetOrderLedger (fixed in a5d8aee).
+func TestAllEndpointsApplyCookies(t *testing.T) {
+	// Track which endpoints were called
+	endpointsCalled := make(map[string]bool)
+	var mu sync.Mutex
+
+	// Create a test server that FAILS if cookies are missing
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		endpointsCalled[r.URL.Path] = true
+		mu.Unlock()
+
+		// CRITICAL: Fail if no cookies present
+		cookieHeader := r.Header.Get("Cookie")
+		if cookieHeader == "" {
+			t.Errorf("Request to %s missing Cookie header!", r.URL.Path)
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"error": "missing cookies"}`))
+			return
+		}
+
+		// Verify our test cookie is present
+		if !strings.Contains(cookieHeader, "test_cookie=test_value") {
+			t.Errorf("Request to %s missing expected test cookie. Got: %s", r.URL.Path, cookieHeader)
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		// Return valid responses based on endpoint
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		if strings.Contains(r.URL.Path, "getOrder") {
+			// Mock order response
+			w.Write([]byte(`{
+				"data": {
+					"order": {
+						"id": "test123",
+						"displayId": "WM-TEST123",
+						"orderDate": "2024-01-01T12:00:00.000-0700",
+						"groups_2101": []
+					}
+				}
+			}`))
+		} else if strings.Contains(r.URL.Path, "getOrderLedger") {
+			// Mock ledger response
+			w.Write([]byte(`{
+				"data": {
+					"getOrderLedger": {
+						"paymentMethodsLedgers": []
+					}
+				}
+			}`))
+		} else if strings.Contains(r.URL.Path, "PurchaseHistoryV2") {
+			// Mock purchase history response
+			w.Write([]byte(`{
+				"data": {
+					"orderHistoryV2": {
+						"pageInfo": {
+							"nextPageCursor": "",
+							"prevPageCursor": ""
+						},
+						"orderGroups": []
+					}
+				}
+			}`))
+		}
+	}))
+	defer server.Close()
+
+	// Create client with test server
+	tempDir := t.TempDir()
+	config := ClientConfig{
+		CookieDir: tempDir,
+		RateLimit: 10 * time.Millisecond, // Fast for testing
+	}
+
+	client, err := NewWalmartClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Add test cookies
+	client.cookieStore.Set("test_cookie", &cookies.Cookie{
+		Value:      "test_value",
+		LastUpdate: time.Now(),
+		Source:     "test",
+		Essential:  true,
+	})
+	client.cookieStore.Set("CID", &cookies.Cookie{
+		Value:      "test_cid",
+		LastUpdate: time.Now(),
+		Source:     "test",
+		Essential:  true,
+	})
+
+	// Override the base transport in the authenticated transport to redirect to test server
+	// This preserves cookie handling while redirecting requests
+	authTransport := client.httpClient.Transport.(*transport.AuthenticatedTransport)
+	authTransport.SetBaseTransport(&clientTestTransport{serverURL: server.URL})
+
+	// Test 1: GetOrder
+	t.Run("GetOrder sends cookies", func(t *testing.T) {
+		_, err := client.GetOrder("test123", false)
+		if err != nil {
+			t.Errorf("GetOrder failed: %v", err)
+		}
+	})
+
+	// Test 2: GetOrderLedger
+	t.Run("GetOrderLedger sends cookies", func(t *testing.T) {
+		_, err := client.GetOrderLedger("test123")
+		if err != nil {
+			t.Errorf("GetOrderLedger failed: %v", err)
+		}
+	})
+
+	// Test 3: GetPurchaseHistory
+	t.Run("GetPurchaseHistory sends cookies", func(t *testing.T) {
+		req := PurchaseHistoryRequest{
+			Limit: 10,
+		}
+		_, err := client.GetPurchaseHistory(req)
+		if err != nil {
+			t.Errorf("GetPurchaseHistory failed: %v", err)
+		}
+	})
+
+	// Verify all endpoints were tested
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(endpointsCalled) < 3 {
+		t.Errorf("Expected at least 3 endpoints to be called, got %d: %v",
+			len(endpointsCalled), endpointsCalled)
+	}
+
+	t.Logf("Successfully validated cookies sent to %d endpoints", len(endpointsCalled))
+}
+
+// clientTestTransport redirects all requests to our test server
+type clientTestTransport struct {
+	serverURL string
+}
+
+func (tt *clientTestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Redirect to test server
+	req.URL.Scheme = "http"
+	req.URL.Host = strings.TrimPrefix(tt.serverURL, "http://")
+	return http.DefaultTransport.RoundTrip(req)
 }
 
 func TestCookieStoreWithLogger(t *testing.T) {

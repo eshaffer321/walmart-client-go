@@ -119,13 +119,10 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set headers (reuse existing method but adjust for purchase history)
-	c.setPurchaseHistoryHeaders(httpReq)
+	// Set headers
+	c.setHeaders(httpReq, "PurchaseHistoryV2")
 
-	// Set cookies from store
-	c.setCookies(httpReq)
-
-	// Execute request
+	// Execute request (cookies are handled automatically by AuthenticatedTransport)
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Error("request failed",
@@ -136,9 +133,6 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 
 	c.logger.Debug("received response",
 		slog.Int("status_code", resp.StatusCode))
-
-	// Update cookies from response
-	c.updateCookiesFromResponse(resp)
 
 	// Read body
 	body, err := io.ReadAll(resp.Body)
@@ -260,7 +254,7 @@ func (c *WalmartClient) GetOrdersByType(orderType string, limit int) ([]OrderSum
 	return resp.Data.OrderHistoryV2.OrderGroups, nil
 }
 
-// Helper to build the purchase history endpoint
+// buildPurchaseHistoryEndpoint builds the purchase history endpoint URL
 func (c *WalmartClient) buildPurchaseHistoryEndpoint(req PurchaseHistoryRequest) string {
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
@@ -282,34 +276,4 @@ func (c *WalmartClient) buildPurchaseHistoryEndpoint(req PurchaseHistoryRequest)
 	// Different hash for PurchaseHistoryV2
 	return fmt.Sprintf("https://www.walmart.com/orchestra/cph/graphql/PurchaseHistoryV2/2c3d5a832b56671dca1ed0ec84940f274d0bc80821db4ad7481e496c0ad5847e?%s",
 		params.Encode())
-}
-
-// Set headers specific to purchase history
-func (c *WalmartClient) setPurchaseHistoryHeaders(req *http.Request) {
-	headers := map[string]string{
-		"accept":                  "application/json",
-		"accept-language":         "en-US",
-		"content-type":            "application/json",
-		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-		"x-apollo-operation-name": "PurchaseHistoryV2",
-		"x-o-gql-query":           "query PurchaseHistoryV2",
-		"x-o-platform":            "rweb",
-		"x-o-bu":                  "WALMART-US",
-		"x-o-mart":                "B2C",
-		"x-o-segment":             "oaoh",
-		"x-o-correlation-id":      fmt.Sprintf("walmart-go-%d", time.Now().Unix()),
-		"wm_qos.correlation_id":   fmt.Sprintf("walmart-go-%d", time.Now().Unix()),
-		"wm_mp":                   "true",
-		"sec-fetch-site":          "same-origin",
-		"sec-fetch-mode":          "cors",
-		"sec-fetch-dest":          "empty",
-		"dnt":                     "1",
-		"x-o-platform-version":    "usweb-1.221.0",
-		"x-enable-server-timing":  "1",
-		"x-latency-trace":         "1",
-	}
-
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
 }

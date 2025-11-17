@@ -124,10 +124,7 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 		// Set headers
 		c.setHeaders(req, "getOrderLedger")
 
-		// Set cookies from store
-		c.setCookies(req)
-
-		// Execute request
+		// Execute request (cookies are handled automatically by AuthenticatedTransport)
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			c.logger.Error("request failed",
@@ -141,9 +138,6 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 			slog.String("order_id", orderID),
 			slog.Int("status_code", resp.StatusCode),
 			slog.Int("attempt", attempt+1))
-
-		// Update cookies from response
-		c.updateCookiesFromResponse(resp)
 
 		// Handle 429 - retry with backoff
 		if resp.StatusCode == 429 {

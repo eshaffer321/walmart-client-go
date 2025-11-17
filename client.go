@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshaffer321/walmart-client-go/internal/cookies"
+	"github.com/eshaffer321/walmart-client-go/internal/transport"
 )
 
 // WalmartClient provides access to Walmart's order history and purchase data API
@@ -74,9 +75,16 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 		logger.Debug("no existing cookies found", slog.String("file_path", config.CookieFile))
 	}
 
+	// Create the client with a mutex for thread-safe cookie access
+	var mu sync.RWMutex
+
+	// Create authenticated transport that automatically handles cookies
+	authTransport := transport.NewAuthenticatedTransport(store, &mu, logger)
+
 	client := &WalmartClient{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: authTransport, // Use authenticated transport for automatic cookie handling
 			// Don't follow redirects automatically
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -86,6 +94,7 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 		rateLimiter:       time.NewTicker(config.RateLimit),
 		ledgerRateLimiter: time.NewTicker(ledgerRate),
 		maxRetries:        maxRetries,
+		mu:                mu,
 		logger:            logger,
 	}
 

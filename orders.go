@@ -40,10 +40,7 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	// Set headers
 	c.setHeaders(req, "getOrder")
 
-	// Set cookies from store
-	c.setCookies(req)
-
-	// Execute request
+	// Execute request (cookies are handled automatically by AuthenticatedTransport)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.logger.Error("request failed",
@@ -56,9 +53,6 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	c.logger.Debug("received response",
 		slog.String("order_id", orderID),
 		slog.Int("status_code", resp.StatusCode))
-
-	// Update cookies from response
-	c.updateCookiesFromResponse(resp)
 
 	// Read body
 	body, err := io.ReadAll(resp.Body)
@@ -247,6 +241,10 @@ func (c *WalmartClient) setHeaders(req *http.Request, operationName string) {
 }
 
 // setCookies adds all cookies from the store to the request
+//
+// Deprecated: Cookie management is now handled automatically by the
+// AuthenticatedTransport layer. This method is kept for backward compatibility
+// but is no longer necessary. It will be removed in v2.0.0.
 func (c *WalmartClient) setCookies(req *http.Request) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -263,6 +261,10 @@ func (c *WalmartClient) setCookies(req *http.Request) {
 }
 
 // updateCookiesFromResponse updates cookie store with Set-Cookie headers
+//
+// Deprecated: Cookie management is now handled automatically by the
+// AuthenticatedTransport layer. This method is kept for backward compatibility
+// but is no longer necessary. It will be removed in v2.0.0.
 func (c *WalmartClient) updateCookiesFromResponse(resp *http.Response) {
 	setCookies := resp.Header["Set-Cookie"]
 	if len(setCookies) == 0 {
