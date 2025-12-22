@@ -54,13 +54,13 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 		maxRetries = 3
 	}
 
-	// Initialize logger with client attribute
+	// Use provided logger or no-op logger if none provided
+	// Note: Caller is responsible for adding any scoping attributes (e.g., system="walmart")
 	logger := config.Logger
 	if logger == nil {
 		// Use no-op logger that discards all output
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	logger = logger.With(slog.String("client", "walmart"))
 
 	// Initialize cookie store
 	store := cookies.NewStore(config.CookieFile, logger)
