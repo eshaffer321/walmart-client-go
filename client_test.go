@@ -449,11 +449,6 @@ func TestWalmartClientWithLogger(t *testing.T) {
 		t.Errorf("Expected log output from initialization but got none")
 	}
 
-	// Verify log contains expected structured fields
-	if !strings.Contains(output, "client=walmart") {
-		t.Errorf("Log output should contain client=walmart attribute, got: %s", output)
-	}
-
 	// Verify cookie initialization was logged (at debug level when no file exists)
 	if !strings.Contains(output, "cookie store initialized") && !strings.Contains(output, "no existing cookies found") {
 		t.Errorf("Expected cookie initialization log message, got: %s", output)
@@ -559,8 +554,8 @@ func TestLoggerPropagation(t *testing.T) {
 		t.Errorf("Expected log output from client initialization, got: %s", output)
 	}
 
-	// Verify the logger has the client attribute
-	if !strings.Contains(output, "client=walmart") {
-		t.Errorf("Logger should have client=walmart attribute, got: %s", output)
+	// Verify initialization logs are present (logger scoping is now caller's responsibility)
+	if !strings.Contains(output, "loading cookies") && !strings.Contains(output, "cookies loaded") {
+		t.Errorf("Expected cookie loading log message, got: %s", output)
 	}
 }
