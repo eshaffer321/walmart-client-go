@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2025-12-24
+
+### Added
+- **ChargedDates field** in `PaymentMethodCharges` struct to track when each charge occurred
+- Parallel to `FinalCharges` slice - each date corresponds to a charge amount
+- New `parseChargeDateTime()` function to parse Walmart's date formats ("Dec 23, 2025 4:31 AM")
+- Supports both abbreviated and full month formats with graceful fallback
+
+## [1.0.8] - 2025-10-27
+
+### Changed
+- Refactored logger to remove redundant `client` attribute from logger (#12)
+- Simplified logging setup by removing per-call attribute injection
+
 ## [1.0.7] - 2025-10-26
 
 ### Fixed
@@ -156,7 +170,9 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.9...HEAD
+[1.0.9]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.8...v1.0.9
+[1.0.8]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.4...v1.0.5
