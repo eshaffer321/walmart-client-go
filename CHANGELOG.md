@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2025-12-24
+
+### Fixed
+- Fixed Go module v2 path in go.mod to use `github.com/eshaffer321/walmart-client-go/v2`
+- Updated all internal imports to use the /v2 module path
+- This release works around the Go module proxy caching issue with v2.0.0
+
+### Note
+- v2.0.0 was tagged with an incorrect go.mod (missing /v2 suffix) and is permanently cached
+- Users should use v2.0.1 or later for proper Go module support
+
 ## [2.0.0] - 2025-12-24
 
 ### Breaking Changes
@@ -224,7 +235,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.9...v2.0.0
 [1.0.9]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.7...v1.0.8
