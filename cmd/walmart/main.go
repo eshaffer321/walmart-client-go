@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	walmart "github.com/eshaffer321/walmart-client-go"
+	walmart "github.com/eshaffer321/walmart-client-go/v2"
 )
 
 func main() {

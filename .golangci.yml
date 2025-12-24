@@ -50,7 +50,7 @@ linters-settings:
     simplify: true
   
   goimports:
-    local-prefixes: github.com/eshaffer321/walmart-client-go
+    local-prefixes: github.com/eshaffer321/walmart-client-go/v2
   
   golint:
     min-confidence: 0.8
