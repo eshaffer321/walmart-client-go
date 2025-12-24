@@ -550,6 +550,49 @@ func TestGetOrderLedger403Response(t *testing.T) {
 	}
 }
 
+// TestGetOrderLedgerRateLimiterCancellation verifies rate limiter respects context cancellation
+func TestGetOrderLedgerRateLimiterCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data": {"getOrderLedger": {"paymentMethodsLedgers": []}}}`))
+	}))
+	defer server.Close()
+
+	// Create client with long rate limit (10 seconds between requests)
+	config := ClientConfig{
+		LedgerRateLimit: 10 * time.Second,
+		AutoSave:        false,
+	}
+	client, err := NewWalmartClient(config)
+	require.NoError(t, err)
+
+	client.httpClient = &http.Client{
+		Transport: &testTransport{
+			serverURL: server.URL,
+		},
+	}
+
+	// Make first request to set lastLedgerRequest
+	ctx := context.Background()
+	_, err = client.GetOrderLedger(ctx, "first-order")
+	require.NoError(t, err)
+
+	// Second request with short timeout - should fail during rate limit wait
+	ctx2, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	ledger, err := client.GetOrderLedger(ctx2, "second-order")
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Nil(t, ledger)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "rate limiting")
+	// Should have cancelled quickly, not waited 10 seconds
+	assert.Less(t, elapsed, 1*time.Second)
+}
+
 // TestGetOrderLedgerContextCancellation verifies context cancellation works
 func TestGetOrderLedgerContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -580,8 +623,8 @@ func TestGetOrderLedgerContextCancellation(t *testing.T) {
 	ledger, err := client.GetOrderLedger(ctx, "test-order")
 	require.Error(t, err)
 	assert.Nil(t, ledger)
-	// Should contain context deadline or cancellation error
-	assert.True(t, err != nil)
+	// Should contain context deadline exceeded error
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestParseAmount(t *testing.T) {
