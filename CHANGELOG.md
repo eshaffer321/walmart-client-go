@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2025-12-24
+
+### Breaking Changes
+- **All public API methods now require `context.Context` as the first parameter**
+  - This enables proper cancellation, timeouts, and graceful shutdown
+  - Affected methods:
+    - `GetPurchaseHistory(ctx context.Context, req PurchaseHistoryRequest)`
+    - `GetRecentOrders(ctx context.Context, limit int)`
+    - `GetAllOrders(ctx context.Context, maxPages int)`
+    - `SearchOrders(ctx context.Context, searchTerm string, limit int)`
+    - `GetOrdersByType(ctx context.Context, orderType string, limit int)`
+    - `GetOrder(ctx context.Context, orderID string, isInStore bool)`
+    - `GetOrderAutoDetect(ctx context.Context, orderID string)`
+    - `GetDeliveryOrderWithTip(ctx context.Context, orderID string)`
+    - `GetOrdersAsJSON(ctx context.Context, limit int)`
+    - `GetOrderAsJSON(ctx context.Context, orderID string, isInStore bool)`
+    - `GetOrderLedger(ctx context.Context, orderID string)`
+
+### Added
+- **Context support for cancellation and timeouts** across all API methods
+  - Rate limiter waits are now cancellable via context
+  - HTTP requests use `http.NewRequestWithContext()` for proper cancellation
+  - Exponential backoff in `GetOrderLedger` retries is now cancellable
+- **Context cancellation test** (`TestGetOrderLedgerContextCancellation`)
+- Improved daemon mode with graceful shutdown via SIGINT/SIGTERM
+
+### Changed
+- Rate limiting now uses `select` with context for interruptible waits
+- `GetAllOrders` checks for context cancellation between page fetches
+- `GetOrderAutoDetect` checks for cancellation before retry attempt
+- Replaced `fmt.Printf` pagination logging in `GetAllOrders` with structured `logger.Debug`
+- CLI commands now use timeouts (2-10 minutes depending on operation)
+
+### Migration Guide
+To migrate from v1.x to v2.0.0, add `context.Context` as the first parameter to all API calls:
+
+```go
+// Before (v1.x)
+orders, err := client.GetRecentOrders(10)
+order, err := client.GetOrder(orderID, isInStore)
+ledger, err := client.GetOrderLedger(orderID)
+
+// After (v2.0.0)
+ctx := context.Background()
+orders, err := client.GetRecentOrders(ctx, 10)
+order, err := client.GetOrder(ctx, orderID, isInStore)
+ledger, err := client.GetOrderLedger(ctx, orderID)
+
+// With timeout
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+orders, err := client.GetRecentOrders(ctx, 10)
+```
+
 ## [1.0.9] - 2025-12-24
 
 ### Added
@@ -170,7 +224,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.9...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.9...v2.0.0
 [1.0.9]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.6...v1.0.7

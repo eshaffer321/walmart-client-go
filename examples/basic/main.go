@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -26,9 +27,13 @@ func main() {
 		panic(fmt.Sprintf("Failed to create client: %v", err))
 	}
 
+	// Create a context with timeout for all operations
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	// Example 1: Get recent orders
 	fmt.Println("\n=== Recent Orders ===")
-	orders, err := client.GetRecentOrders(5)
+	orders, err := client.GetRecentOrders(ctx, 5)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get recent orders: %v", err))
 	}
@@ -43,7 +48,7 @@ func main() {
 		orderID := orders[0].OrderID
 		isInStore := orders[0].FulfillmentType == "IN_STORE"
 
-		fullOrder, err := client.GetOrder(orderID, isInStore)
+		fullOrder, err := client.GetOrder(ctx, orderID, isInStore)
 		if err != nil {
 			panic(fmt.Sprintf("Failed to get order: %v", err))
 		}
@@ -59,7 +64,7 @@ func main() {
 
 	// Example 3: Search orders
 	fmt.Println("\n=== Search Results ===")
-	results, err := client.SearchOrders("bread", 10)
+	results, err := client.SearchOrders(ctx, "bread", 10)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to search orders: %v", err))
 	}

@@ -36,9 +36,12 @@
 //	    log.Fatal(err)
 //	}
 //
-// Fetch recent orders:
+// Fetch recent orders with context support for cancellation and timeouts:
 //
-//	orders, err := client.GetRecentOrders(10)
+//	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+//	defer cancel()
+//
+//	orders, err := client.GetRecentOrders(ctx, 10)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -49,7 +52,7 @@
 //
 // Get detailed order information:
 //
-//	order, err := client.GetOrder(orderID, true)
+//	order, err := client.GetOrder(ctx, orderID, true)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -82,6 +85,26 @@
 //
 // A default 2-second delay is enforced between requests to prevent rate limiting
 // by Walmart's servers. This can be configured via ClientConfig.RateLimit.
+//
+// # Context Support
+//
+// All public API methods accept a context.Context as the first parameter,
+// enabling proper cancellation, timeouts, and graceful shutdown:
+//
+//   - Rate limiter waits are cancellable via context
+//   - HTTP requests respect context cancellation
+//   - Long-running operations like GetAllOrders check cancellation between pages
+//
+// Recommended timeouts:
+//   - Single order/history fetch: 1-2 minutes
+//   - Pagination operations (GetAllOrders): 5-10 minutes
+//   - Ledger requests: 2-5 minutes (has stricter rate limits)
+//
+// # Thread Safety
+//
+// WalmartClient is NOT safe for concurrent use from multiple goroutines.
+// The rate limiter state is not protected by a mutex. If you need concurrent
+// access, create separate client instances for each goroutine.
 //
 // # Order Types
 //

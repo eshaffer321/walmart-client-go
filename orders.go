@@ -1,6 +1,7 @@
 package walmart
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,12 +14,18 @@ import (
 	"github.com/eshaffer321/walmart-client-go/internal/cookies"
 )
 
-// GetOrder fetches an order with automatic cookie updates
-func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error) {
-	// Rate limiting - only wait if not first request
+// GetOrder fetches an order with automatic cookie updates.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore bool) (*Order, error) {
+	// Rate limiting with context support
 	if !c.lastRequest.IsZero() {
 		c.logger.Debug("waiting for rate limiter")
-		<-c.rateLimiter.C
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("request cancelled while rate limiting: %w", ctx.Err())
+		case <-c.rateLimiter.C:
+			// continue
+		}
 	}
 	c.lastRequest = time.Now()
 
@@ -29,7 +36,7 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 		slog.Bool("is_in_store", isInStore),
 		slog.String("endpoint", endpoint))
 
-	req, err := http.NewRequest("GET", endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		c.logger.Error("failed to create request",
 			slog.String("order_id", orderID),
@@ -132,16 +139,22 @@ func (c *WalmartClient) GetOrder(orderID string, isInStore bool) (*Order, error)
 	return order, nil
 }
 
-// GetOrderAutoDetect tries to fetch an order, automatically detecting if it's in-store or delivery
-func (c *WalmartClient) GetOrderAutoDetect(orderID string) (*Order, error) {
+// GetOrderAutoDetect tries to fetch an order, automatically detecting if it's in-store or delivery.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetOrderAutoDetect(ctx context.Context, orderID string) (*Order, error) {
 	// First try as in-store (most common for the user's examples)
-	order, err := c.GetOrder(orderID, true)
+	order, err := c.GetOrder(ctx, orderID, true)
 	if err == nil {
 		return order, nil
 	}
 
+	// Check for cancellation before retrying
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("request cancelled: %w", ctx.Err())
+	}
+
 	// If that fails, try as delivery order
-	order, err = c.GetOrder(orderID, false)
+	order, err = c.GetOrder(ctx, orderID, false)
 	if err == nil {
 		return order, nil
 	}
@@ -149,10 +162,11 @@ func (c *WalmartClient) GetOrderAutoDetect(orderID string) (*Order, error) {
 	return nil, fmt.Errorf("order not found as either in-store or delivery: %w", err)
 }
 
-// GetDeliveryOrderWithTip fetches a delivery order and ensures tip information is included
-func (c *WalmartClient) GetDeliveryOrderWithTip(orderID string) (*Order, error) {
+// GetDeliveryOrderWithTip fetches a delivery order and ensures tip information is included.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetDeliveryOrderWithTip(ctx context.Context, orderID string) (*Order, error) {
 	// Fetch as delivery order (isInStore = false)
-	order, err := c.GetOrder(orderID, false)
+	order, err := c.GetOrder(ctx, orderID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -165,9 +179,10 @@ func (c *WalmartClient) GetDeliveryOrderWithTip(orderID string) (*Order, error) 
 	return order, nil
 }
 
-// GetOrdersAsJSON is a helper that returns recent orders as JSON string
-func (c *WalmartClient) GetOrdersAsJSON(limit int) (string, error) {
-	orders, err := c.GetRecentOrders(limit)
+// GetOrdersAsJSON is a helper that returns recent orders as JSON string.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetOrdersAsJSON(ctx context.Context, limit int) (string, error) {
+	orders, err := c.GetRecentOrders(ctx, limit)
 	if err != nil {
 		return "", err
 	}
@@ -180,9 +195,10 @@ func (c *WalmartClient) GetOrdersAsJSON(limit int) (string, error) {
 	return string(jsonData), nil
 }
 
-// GetOrderAsJSON is a helper that returns order details as JSON string
-func (c *WalmartClient) GetOrderAsJSON(orderID string, isInStore bool) (string, error) {
-	order, err := c.GetOrder(orderID, isInStore)
+// GetOrderAsJSON is a helper that returns order details as JSON string.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetOrderAsJSON(ctx context.Context, orderID string, isInStore bool) (string, error) {
+	order, err := c.GetOrder(ctx, orderID, isInStore)
 	if err != nil {
 		return "", err
 	}
