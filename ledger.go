@@ -20,11 +20,12 @@ type OrderLedger struct {
 
 // PaymentMethodCharges contains the final charges for a payment method
 type PaymentMethodCharges struct {
-	PaymentType  string    `json:"paymentType"`  // "CREDITCARD", "GIFTCARD"
-	CardType     string    `json:"cardType"`     // "VISA", "WMTRC", etc.
-	LastFour     string    `json:"lastFour"`     // Last 4 digits of card
-	FinalCharges []float64 `json:"finalCharges"` // Individual charge amounts
-	TotalCharged float64   `json:"totalCharged"` // Sum of final charges
+	PaymentType  string      `json:"paymentType"`  // "CREDITCARD", "GIFTCARD"
+	CardType     string      `json:"cardType"`     // "VISA", "WMTRC", etc.
+	LastFour     string      `json:"lastFour"`     // Last 4 digits of card
+	FinalCharges []float64   `json:"finalCharges"` // Individual charge amounts
+	ChargedDates []time.Time `json:"chargedDates"` // Date/time of each charge (parallel to FinalCharges)
+	TotalCharged float64     `json:"totalCharged"` // Sum of final charges
 }
 
 // OrderLedgerResponse represents the raw API response
@@ -212,6 +213,7 @@ func convertToOrderLedger(orderID string, resp OrderLedgerResponse) *OrderLedger
 			CardType:     pm.CardType,
 			LastFour:     extractLastFour(pm.Description),
 			FinalCharges: []float64{},
+			ChargedDates: []time.Time{},
 		}
 
 		// Extract final charges only
@@ -224,6 +226,10 @@ func convertToOrderLedger(orderID string, resp OrderLedgerResponse) *OrderLedger
 							if amount, err := parseAmount(value); err == nil {
 								charges.FinalCharges = append(charges.FinalCharges, amount)
 								charges.TotalCharged += amount
+
+								// Parse the charge date/time
+								chargedAt := parseChargeDateTime(line.Date, row.Time)
+								charges.ChargedDates = append(charges.ChargedDates, chargedAt)
 							}
 						}
 					}
@@ -268,4 +274,47 @@ func extractLastFour(description string) string {
 		return matches[1]
 	}
 	return ""
+}
+
+// parseChargeDateTime parses date and time strings from Walmart ledger into time.Time
+// Date format: "Dec 23, 2025" (abbreviated month) or "December 16, 2024" (full month)
+// Time format: "4:31 AM" or "10:15 PM"
+func parseChargeDateTime(dateStr, timeStr string) time.Time {
+	if dateStr == "" {
+		return time.Time{}
+	}
+
+	// Build combined datetime string
+	combined := dateStr
+	if timeStr != "" {
+		combined = dateStr + " " + timeStr
+	}
+
+	// Try parsing with time first
+	if timeStr != "" {
+		// Try abbreviated month format first (this is what the API returns)
+		t, err := time.Parse("Jan 2, 2006 3:04 PM", combined)
+		if err == nil {
+			return t
+		}
+		// Try full month format
+		t, err = time.Parse("January 2, 2006 3:04 PM", combined)
+		if err == nil {
+			return t
+		}
+	}
+
+	// Fall back to date only - try abbreviated month first
+	t, err := time.Parse("Jan 2, 2006", dateStr)
+	if err == nil {
+		return t
+	}
+
+	// Fall back to full month format
+	t, err = time.Parse("January 2, 2006", dateStr)
+	if err == nil {
+		return t
+	}
+
+	return time.Time{}
 }

@@ -124,6 +124,10 @@ func TestGetOrderLedger(t *testing.T) {
 						CardType:     "VISA",
 						LastFour:     "0953",
 						FinalCharges: []float64{178.96, 4.12},
+						ChargedDates: []time.Time{
+							time.Date(2024, time.December, 16, 4, 31, 0, 0, time.UTC),
+							time.Date(2024, time.December, 17, 19, 31, 0, 0, time.UTC),
+						},
 						TotalCharged: 183.08,
 					},
 					{
@@ -131,6 +135,9 @@ func TestGetOrderLedger(t *testing.T) {
 						CardType:     "WMTRC",
 						LastFour:     "",
 						FinalCharges: []float64{2.75},
+						ChargedDates: []time.Time{
+							time.Date(2024, time.December, 16, 4, 31, 0, 0, time.UTC),
+						},
 						TotalCharged: 2.75,
 					},
 				},
@@ -183,6 +190,10 @@ func TestGetOrderLedger(t *testing.T) {
 						CardType:     "MASTERCARD",
 						LastFour:     "1234",
 						FinalCharges: []float64{100.00, -15.00},
+						ChargedDates: []time.Time{
+							time.Date(2025, time.January, 10, 10, 0, 0, 0, time.UTC),
+							time.Date(2025, time.January, 10, 11, 0, 0, 0, time.UTC),
+						},
 						TotalCharged: 85.00,
 					},
 				},
@@ -230,6 +241,9 @@ func TestGetOrderLedger(t *testing.T) {
 						CardType:     "AMEX",
 						LastFour:     "5678",
 						FinalCharges: []float64{250.50},
+						ChargedDates: []time.Time{
+							time.Date(2025, time.January, 15, 14, 30, 0, 0, time.UTC),
+						},
 						TotalCharged: 250.50,
 					},
 				},
@@ -305,6 +319,9 @@ func TestGetOrderLedger(t *testing.T) {
 						CardType:     "DISCOVER",
 						LastFour:     "",
 						FinalCharges: []float64{75.00},
+						ChargedDates: []time.Time{
+							time.Date(2025, time.January, 20, 17, 0, 0, 0, time.UTC),
+						},
 						TotalCharged: 75.00,
 					},
 				},
@@ -352,6 +369,10 @@ func TestGetOrderLedger(t *testing.T) {
 						CardType:     "VISA",
 						LastFour:     "9999",
 						FinalCharges: []float64{50.00, 25.00},
+						ChargedDates: []time.Time{
+							time.Date(2025, time.January, 25, 18, 0, 0, 0, time.UTC),
+							time.Date(2025, time.January, 25, 18, 0, 0, 0, time.UTC),
+						},
 						TotalCharged: 75.00,
 					},
 				},
