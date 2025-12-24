@@ -1,6 +1,7 @@
 package walmart
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,12 +81,18 @@ type ItemSummary struct {
 	} `json:"imageInfo"`
 }
 
-// GetPurchaseHistory fetches the purchase history with optional filters
-func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*PurchaseHistoryResponse, error) {
-	// Rate limiting
+// GetPurchaseHistory fetches the purchase history with optional filters.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetPurchaseHistory(ctx context.Context, req PurchaseHistoryRequest) (*PurchaseHistoryResponse, error) {
+	// Rate limiting with context support
 	if !c.lastRequest.IsZero() {
 		c.logger.Debug("waiting for rate limiter")
-		<-c.rateLimiter.C
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("request cancelled while rate limiting: %w", ctx.Err())
+		case <-c.rateLimiter.C:
+			// continue
+		}
 	}
 	c.lastRequest = time.Now()
 
@@ -112,7 +119,7 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 	c.logger.Debug("purchase history request",
 		slog.String("endpoint", endpoint))
 
-	httpReq, err := http.NewRequest("GET", endpoint, nil)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		c.logger.Error("failed to create request",
 			slog.String("error", err.Error()))
@@ -185,13 +192,14 @@ func (c *WalmartClient) GetPurchaseHistory(req PurchaseHistoryRequest) (*Purchas
 	return &historyResp, nil
 }
 
-// GetRecentOrders is a convenience method to get recent orders
-func (c *WalmartClient) GetRecentOrders(limit int) ([]OrderSummary, error) {
+// GetRecentOrders is a convenience method to get recent orders.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetRecentOrders(ctx context.Context, limit int) ([]OrderSummary, error) {
 	req := PurchaseHistoryRequest{
 		Limit: limit,
 	}
 
-	resp, err := c.GetPurchaseHistory(req)
+	resp, err := c.GetPurchaseHistory(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -199,18 +207,24 @@ func (c *WalmartClient) GetRecentOrders(limit int) ([]OrderSummary, error) {
 	return resp.Data.OrderHistoryV2.OrderGroups, nil
 }
 
-// GetAllOrders fetches all orders with pagination
-func (c *WalmartClient) GetAllOrders(maxPages int) ([]OrderSummary, error) {
+// GetAllOrders fetches all orders with pagination.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetAllOrders(ctx context.Context, maxPages int) ([]OrderSummary, error) {
 	var allOrders []OrderSummary
 	cursor := ""
 
 	for page := 0; page < maxPages; page++ {
+		// Check for cancellation before each page
+		if err := ctx.Err(); err != nil {
+			return allOrders, fmt.Errorf("cancelled after %d pages: %w", page, err)
+		}
+
 		req := PurchaseHistoryRequest{
 			Cursor: cursor,
 			Limit:  20,
 		}
 
-		resp, err := c.GetPurchaseHistory(req)
+		resp, err := c.GetPurchaseHistory(ctx, req)
 		if err != nil {
 			return allOrders, fmt.Errorf("failed on page %d: %w", page+1, err)
 		}
@@ -223,21 +237,24 @@ func (c *WalmartClient) GetAllOrders(maxPages int) ([]OrderSummary, error) {
 			break
 		}
 
-		fmt.Printf("Fetched page %d, got %d orders (total: %d)\n",
-			page+1, len(resp.Data.OrderHistoryV2.OrderGroups), len(allOrders))
+		c.logger.Debug("fetched page",
+			slog.Int("page", page+1),
+			slog.Int("page_orders", len(resp.Data.OrderHistoryV2.OrderGroups)),
+			slog.Int("total_orders", len(allOrders)))
 	}
 
 	return allOrders, nil
 }
 
-// SearchOrders searches for orders containing a specific item
-func (c *WalmartClient) SearchOrders(searchTerm string, limit int) ([]OrderSummary, error) {
+// SearchOrders searches for orders containing a specific item.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) SearchOrders(ctx context.Context, searchTerm string, limit int) ([]OrderSummary, error) {
 	req := PurchaseHistoryRequest{
 		Search: searchTerm,
 		Limit:  limit,
 	}
 
-	resp, err := c.GetPurchaseHistory(req)
+	resp, err := c.GetPurchaseHistory(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -245,14 +262,15 @@ func (c *WalmartClient) SearchOrders(searchTerm string, limit int) ([]OrderSumma
 	return resp.Data.OrderHistoryV2.OrderGroups, nil
 }
 
-// GetOrdersByType fetches orders of a specific type
-func (c *WalmartClient) GetOrdersByType(orderType string, limit int) ([]OrderSummary, error) {
+// GetOrdersByType fetches orders of a specific type.
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetOrdersByType(ctx context.Context, orderType string, limit int) ([]OrderSummary, error) {
 	req := PurchaseHistoryRequest{
 		Type:  &orderType,
 		Limit: limit,
 	}
 
-	resp, err := c.GetPurchaseHistory(req)
+	resp, err := c.GetPurchaseHistory(ctx, req)
 	if err != nil {
 		return nil, err
 	}

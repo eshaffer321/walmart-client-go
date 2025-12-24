@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -26,11 +27,15 @@ func main() {
 		panic(fmt.Sprintf("Failed to create client: %v", err))
 	}
 
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
 	// Example order ID - replace with your actual order ID
 	orderID := "200013509224581"
 
 	// Get the order ledger showing actual credit card charges
-	ledger, err := client.GetOrderLedger(orderID)
+	ledger, err := client.GetOrderLedger(ctx, orderID)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get order ledger: %v", err))
 	}

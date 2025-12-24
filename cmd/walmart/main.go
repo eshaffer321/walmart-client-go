@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	walmart "github.com/eshaffer321/walmart-client-go"
@@ -71,7 +74,9 @@ func main() {
 	case *orderID != "":
 		// Fetch specific order
 		fmt.Printf("\n📦 Fetching order %s...\n", *orderID)
-		order, err := client.GetOrderAutoDetect(*orderID)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		order, err := client.GetOrderAutoDetect(ctx, *orderID)
 		if err != nil {
 			// Try to help user recover
 			fmt.Printf("\n❌ Failed: %v\n", err)
@@ -87,7 +92,9 @@ func main() {
 	case *history:
 		// Show recent purchase history
 		fmt.Println("\n📋 Fetching recent orders...")
-		orders, err := client.GetRecentOrders(10)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		orders, err := client.GetRecentOrders(ctx, 10)
 		if err != nil {
 			fmt.Printf("\n❌ Failed: %v\n", err)
 			os.Exit(1)
@@ -97,7 +104,9 @@ func main() {
 	case *search != "":
 		// Search orders
 		fmt.Printf("\n🔍 Searching for '%s' in orders...\n", *search)
-		orders, err := client.SearchOrders(*search, 20)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		orders, err := client.SearchOrders(ctx, *search, 20)
 		if err != nil {
 			fmt.Printf("\n❌ Failed: %v\n", err)
 			os.Exit(1)
@@ -107,7 +116,9 @@ func main() {
 	case *listAll:
 		// List all orders with pagination
 		fmt.Println("\n📋 Fetching all orders (max 5 pages)...")
-		orders, err := client.GetAllOrders(5)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		orders, err := client.GetAllOrders(ctx, 5)
 		if err != nil {
 			fmt.Printf("\n❌ Failed: %v\n", err)
 			os.Exit(1)
@@ -295,6 +306,13 @@ func runDaemon(client *walmart.WalmartClient) {
 	fmt.Println("   Will auto-refresh cookies every 30 minutes")
 	fmt.Println("   Press Ctrl+C to stop")
 
+	// Set up graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
@@ -303,11 +321,16 @@ func runDaemon(client *walmart.WalmartClient) {
 
 	for {
 		select {
+		case <-sigCh:
+			fmt.Println("\n👋 Shutting down daemon...")
+			return
 		case <-ticker.C:
 			fmt.Printf("\n[%s] Checking cookie health...\n", time.Now().Format("15:04:05"))
 
 			// Try to fetch an order as health check
-			_, err := client.GetOrder(testOrderID, true)
+			checkCtx, checkCancel := context.WithTimeout(ctx, 30*time.Second)
+			_, err := client.GetOrder(checkCtx, testOrderID, true)
+			checkCancel()
 			if err != nil {
 				fmt.Printf("⚠️  Cookies might be stale: %v\n", err)
 				fmt.Println("   Consider running: ./walmart -refresh")

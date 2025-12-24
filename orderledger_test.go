@@ -1,6 +1,7 @@
 package walmart
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -414,7 +415,8 @@ func TestGetOrderLedger(t *testing.T) {
 				},
 			}
 
-			ledger, err := client.GetOrderLedger(tt.orderID)
+			ctx := context.Background()
+			ledger, err := client.GetOrderLedger(ctx, tt.orderID)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -459,8 +461,9 @@ func TestGetOrderLedgerRateLimiting(t *testing.T) {
 	}
 
 	// Make 3 ledger requests
+	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		_, err := client.GetOrderLedger("test-order")
+		_, err := client.GetOrderLedger(ctx, "test-order")
 		require.NoError(t, err)
 	}
 
@@ -499,7 +502,8 @@ func TestGetOrderLedger429Response(t *testing.T) {
 		},
 	}
 
-	ledger, err := client.GetOrderLedger("test-order")
+	ctx := context.Background()
+	ledger, err := client.GetOrderLedger(ctx, "test-order")
 	require.Error(t, err)
 	assert.Nil(t, ledger)
 	assert.Contains(t, err.Error(), "rate limited")
@@ -536,13 +540,48 @@ func TestGetOrderLedger403Response(t *testing.T) {
 				},
 			}
 
-			ledger, err := client.GetOrderLedger("test-order")
+			ctx := context.Background()
+			ledger, err := client.GetOrderLedger(ctx, "test-order")
 			require.Error(t, err)
 			assert.Nil(t, ledger)
 			assert.Contains(t, err.Error(), "access denied")
 			assert.Contains(t, err.Error(), "cookies might be stale")
 		})
 	}
+}
+
+// TestGetOrderLedgerContextCancellation verifies context cancellation works
+func TestGetOrderLedgerContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate slow response
+		time.Sleep(500 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data": {"getOrderLedger": {"paymentMethodsLedgers": []}}}`))
+	}))
+	defer server.Close()
+
+	config := ClientConfig{
+		RateLimit: time.Millisecond * 10,
+		AutoSave:  false,
+	}
+	client, err := NewWalmartClient(config)
+	require.NoError(t, err)
+
+	client.httpClient = &http.Client{
+		Transport: &testTransport{
+			serverURL: server.URL,
+		},
+	}
+
+	// Create a context that we cancel immediately
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	ledger, err := client.GetOrderLedger(ctx, "test-order")
+	require.Error(t, err)
+	assert.Nil(t, ledger)
+	// Should contain context deadline or cancellation error
+	assert.True(t, err != nil)
 }
 
 func TestParseAmount(t *testing.T) {

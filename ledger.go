@@ -1,6 +1,7 @@
 package walmart
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -67,15 +68,21 @@ type RowLine struct {
 // GetOrderLedger fetches the payment ledger for an order showing actual charges.
 // This endpoint has stricter rate limits than other endpoints, so it uses a separate
 // rate limiter and implements retry logic with exponential backoff for 429 errors.
-func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
+// The context can be used to cancel the request or set a deadline.
+func (c *WalmartClient) GetOrderLedger(ctx context.Context, orderID string) (*OrderLedger, error) {
 	if orderID == "" {
 		return nil, fmt.Errorf("order ID is required")
 	}
 
-	// Use ledger-specific rate limiter (stricter than regular rate limit)
+	// Use ledger-specific rate limiter with context support
 	if !c.lastLedgerRequest.IsZero() {
 		c.logger.Debug("waiting for ledger rate limiter")
-		<-c.ledgerRateLimiter.C
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("request cancelled while rate limiting: %w", ctx.Err())
+		case <-c.ledgerRateLimiter.C:
+			// continue
+		}
 	}
 	c.lastLedgerRequest = time.Now()
 
@@ -101,6 +108,11 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 	}
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Check for cancellation before each attempt
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("request cancelled: %w", err)
+		}
+
 		if attempt > 0 {
 			// Exponential backoff: 5s, 10s, 20s, 40s...
 			backoff := time.Duration(5*(1<<uint(attempt-1))) * time.Second
@@ -109,7 +121,16 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 				slog.Int("attempt", attempt),
 				slog.Int("max_retries", maxRetries),
 				slog.Duration("backoff", backoff))
-			time.Sleep(backoff)
+
+			// Use a timer for cancellable backoff
+			timer := time.NewTimer(backoff)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, fmt.Errorf("request cancelled during backoff: %w", ctx.Err())
+			case <-timer.C:
+				// continue
+			}
 		}
 
 		c.logger.Debug("fetching order ledger",
@@ -117,7 +138,7 @@ func (c *WalmartClient) GetOrderLedger(orderID string) (*OrderLedger, error) {
 			slog.Int("attempt", attempt+1),
 			slog.Int("max_attempts", maxRetries+1))
 
-		req, err := http.NewRequest("GET", endpoint, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 		if err != nil {
 			return nil, fmt.Errorf("creating request: %w", err)
 		}
