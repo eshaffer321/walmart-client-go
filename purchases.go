@@ -11,18 +11,18 @@ import (
 	"time"
 )
 
-// PurchaseHistoryRequest represents the request parameters
+// PurchaseHistoryRequest represents the request parameters.
 type PurchaseHistoryRequest struct {
-	Cursor       string   `json:"cursor"`       // Empty for first page
-	Search       string   `json:"search"`       // Search filter (e.g., "cheese")
-	FilterIds    []string `json:"filterIds"`    // Filter IDs (e.g., ["last-3-months", "in-store"])
-	Limit        int      `json:"limit"`        // Number of orders to return
+	Cursor       string   `json:"cursor"`       // Empty for first page.
+	Search       string   `json:"search"`       // Search filter (e.g., "cheese").
+	FilterIds    []string `json:"filterIds"`    // Filter IDs (e.g., ["last-3-months", "in-store"]).
+	Limit        int      `json:"limit"`        // Number of orders to return.
 	Type         *string  `json:"type"`         // Order type (DELIVERY, PICKUP, etc.)
-	MinTimestamp *int64   `json:"minTimestamp"` // Start date filter (unix timestamp)
-	MaxTimestamp *int64   `json:"maxTimestamp"` // End date filter (unix timestamp)
+	MinTimestamp *int64   `json:"minTimestamp"` // Start date filter (unix timestamp).
+	MaxTimestamp *int64   `json:"maxTimestamp"` // End date filter (unix timestamp).
 }
 
-// PurchaseHistoryResponse represents the response structure
+// PurchaseHistoryResponse represents the response structure.
 type PurchaseHistoryResponse struct {
 	Data struct {
 		OrderHistoryV2 struct {
@@ -35,7 +35,7 @@ type PurchaseHistoryResponse struct {
 	} `json:"data"`
 }
 
-// OrderSummary represents a summary of an order in the history
+// OrderSummary represents a summary of an order in the history.
 type OrderSummary struct {
 	Type                   string        `json:"type"` // IN_STORE, GLASS, etc.
 	OrderID                string        `json:"orderId"`
@@ -52,7 +52,7 @@ type OrderSummary struct {
 	DeliveredDate          *string       `json:"deliveredDate"`
 }
 
-// StoreInfo represents store information
+// StoreInfo represents store information.
 type StoreInfo struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -61,7 +61,7 @@ type StoreInfo struct {
 	} `json:"address"`
 }
 
-// StatusInfo represents order status
+// StatusInfo represents order status.
 type StatusInfo struct {
 	StatusType string `json:"statusType"` // IN_STORE, DELIVERED, etc.
 	Message    struct {
@@ -71,7 +71,7 @@ type StatusInfo struct {
 	} `json:"message"`
 }
 
-// ItemSummary represents an item in the order summary
+// ItemSummary represents an item in the order summary.
 type ItemSummary struct {
 	ID        string `json:"id"`
 	Quantity  int    `json:"quantity"`
@@ -84,24 +84,24 @@ type ItemSummary struct {
 // GetPurchaseHistory fetches the purchase history with optional filters.
 // The context can be used to cancel the request or set a deadline.
 func (c *WalmartClient) GetPurchaseHistory(ctx context.Context, req PurchaseHistoryRequest) (*PurchaseHistoryResponse, error) {
-	// Rate limiting with context support
+	// Rate limiting with context support.
 	if !c.lastRequest.IsZero() {
 		c.logger.Debug("waiting for rate limiter")
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("request cancelled while rate limiting: %w", ctx.Err())
+			return nil, fmt.Errorf("request canceled while rate limiting: %w", ctx.Err())
 		case <-c.rateLimiter.C:
-			// continue
+			// Continue.
 		}
 	}
 	c.lastRequest = time.Now()
 
-	// Set defaults
+	// Set defaults.
 	if req.Limit == 0 {
 		req.Limit = 10
 	}
 
-	// Log the request with appropriate detail
+	// Log the request with appropriate detail.
 	logAttrs := []any{slog.Int("limit", req.Limit)}
 	if req.MinTimestamp != nil {
 		logAttrs = append(logAttrs, slog.Int64("min_timestamp", *req.MinTimestamp))
@@ -126,28 +126,32 @@ func (c *WalmartClient) GetPurchaseHistory(ctx context.Context, req PurchaseHist
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set headers (reuse existing method but adjust for purchase history)
+	// Set headers (reuse existing method but adjust for purchase history).
 	c.setPurchaseHistoryHeaders(httpReq)
 
-	// Set cookies from store
+	// Set cookies from store.
 	c.setCookies(httpReq)
 
-	// Execute request
+	// Execute request.
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Error("request failed",
 			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			c.logger.Debug("failed to close response body", slog.String("error", cerr.Error()))
+		}
+	}()
 
 	c.logger.Debug("received response",
 		slog.Int("status_code", resp.StatusCode))
 
-	// Update cookies from response
+	// Update cookies from response.
 	c.updateCookiesFromResponse(resp)
 
-	// Read body
+	// Read body.
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Error("failed to read response",
@@ -158,24 +162,12 @@ func (c *WalmartClient) GetPurchaseHistory(ctx context.Context, req PurchaseHist
 	c.logger.Debug("response received",
 		slog.Int("response_size", len(body)))
 
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 429 {
-			c.logger.Warn("rate limited",
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
-		}
-		if resp.StatusCode == 403 || resp.StatusCode == 418 {
-			c.logger.Warn("access denied",
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("access denied - cookies expired, please update from browser")
-		}
-		c.logger.Warn("non-200 response",
-			slog.Int("status_code", resp.StatusCode))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	// Check status.
+	if err := c.checkPurchaseResponseError(resp, body); err != nil {
+		return nil, err
 	}
 
-	// Parse response
+	// Parse response.
 	var historyResp PurchaseHistoryResponse
 	if err := json.Unmarshal(body, &historyResp); err != nil {
 		c.logger.Error("failed to parse response",
@@ -186,10 +178,31 @@ func (c *WalmartClient) GetPurchaseHistory(ctx context.Context, req PurchaseHist
 	c.logger.Info("fetched purchase history",
 		slog.Int("order_count", len(historyResp.Data.OrderHistoryV2.OrderGroups)))
 
-	// Auto-save cookies after successful request
-	_ = c.cookieStore.Save()
+	// Auto-save cookies after successful request.
+	if err := c.cookieStore.Save(); err != nil {
+		c.logger.Warn("failed to save cookies after request", slog.String("error", err.Error()))
+	}
 
 	return &historyResp, nil
+}
+
+// checkPurchaseResponseError returns an error describing a non-OK purchase
+// history response, or nil when the status is HTTP 200.
+func (c *WalmartClient) checkPurchaseResponseError(resp *http.Response, body []byte) error {
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	switch resp.StatusCode {
+	case 429:
+		c.logger.Warn("rate limited", slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
+	case 403, 418:
+		c.logger.Warn("access denied", slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("access denied - cookies expired, please update from browser")
+	default:
+		c.logger.Warn("non-200 response", slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 // GetRecentOrders is a convenience method to get recent orders.
@@ -214,9 +227,9 @@ func (c *WalmartClient) GetAllOrders(ctx context.Context, maxPages int) ([]Order
 	cursor := ""
 
 	for page := 0; page < maxPages; page++ {
-		// Check for cancellation before each page
+		// Check for cancellation before each page.
 		if err := ctx.Err(); err != nil {
-			return allOrders, fmt.Errorf("cancelled after %d pages: %w", page, err)
+			return allOrders, fmt.Errorf("canceled after %d pages: %w", page, err)
 		}
 
 		req := PurchaseHistoryRequest{
@@ -231,7 +244,7 @@ func (c *WalmartClient) GetAllOrders(ctx context.Context, maxPages int) ([]Order
 
 		allOrders = append(allOrders, resp.Data.OrderHistoryV2.OrderGroups...)
 
-		// Check if there's a next page
+		// Check if there's a next page.
 		cursor = resp.Data.OrderHistoryV2.PageInfo.NextPageCursor
 		if cursor == "" {
 			break
@@ -278,7 +291,7 @@ func (c *WalmartClient) GetOrdersByType(ctx context.Context, orderType string, l
 	return resp.Data.OrderHistoryV2.OrderGroups, nil
 }
 
-// Helper to build the purchase history endpoint
+// Helper to build the purchase history endpoint.
 func (c *WalmartClient) buildPurchaseHistoryEndpoint(req PurchaseHistoryRequest) string {
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
@@ -293,16 +306,19 @@ func (c *WalmartClient) buildPurchaseHistoryEndpoint(req PurchaseHistoryRequest)
 		"platform": "WEB",
 	}
 
-	variablesJSON, _ := json.Marshal(variables)
+	variablesJSON, err := json.Marshal(variables)
+	if err != nil {
+		c.logger.Error("failed to marshal purchase history variables", slog.String("error", err.Error()))
+	}
 	params := url.Values{}
 	params.Set("variables", string(variablesJSON))
 
-	// Different hash for PurchaseHistoryV2
+	// Different hash for PurchaseHistoryV2.
 	return fmt.Sprintf("https://www.walmart.com/orchestra/cph/graphql/PurchaseHistoryV2/2c3d5a832b56671dca1ed0ec84940f274d0bc80821db4ad7481e496c0ad5847e?%s",
 		params.Encode())
 }
 
-// Set headers specific to purchase history
+// Set headers specific to purchase history.
 func (c *WalmartClient) setPurchaseHistoryHeaders(req *http.Request) {
 	headers := map[string]string{
 		"accept":                  "application/json",

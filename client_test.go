@@ -46,7 +46,7 @@ func TestCookieStore(t *testing.T) {
 	tempDir := t.TempDir()
 	store := cookies.NewStore(filepath.Join(tempDir, "test_cookies.json"), nil)
 
-	// Test Set and Get
+	// Test Set and Get.
 	cookie := &cookies.Cookie{
 		Value:      "test_value",
 		LastUpdate: time.Now(),
@@ -65,7 +65,7 @@ func TestCookieStore(t *testing.T) {
 		t.Errorf("Expected value 'test_value', got '%s'", retrieved.Value)
 	}
 
-	// Test Save and Load
+	// Test Save and Load.
 	err := store.Save()
 	if err != nil {
 		t.Fatalf("Failed to save cookies: %v", err)
@@ -135,19 +135,19 @@ func TestOrderModels(t *testing.T) {
 		},
 	}
 
-	// Test GetItems
+	// Test GetItems.
 	items := order.GetItems()
 	if len(items) != 2 {
 		t.Errorf("Expected 2 items, got %d", len(items))
 	}
 
-	// Test GetItemCount
+	// Test GetItemCount.
 	count := order.GetItemCount()
 	if count != 3 {
 		t.Errorf("Expected item count 3, got %d", count)
 	}
 
-	// Test CalculateOrderTotal
+	// Test CalculateOrderTotal.
 	total := order.CalculateOrderTotal()
 	if total != 15.00 {
 		t.Errorf("Expected total 15.00, got %.2f", total)
@@ -162,13 +162,13 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 
 	client, _ := NewWalmartClient(config)
 
-	// Add initial cookie
+	// Add initial cookie.
 	client.cookieStore.Set("existing", &cookies.Cookie{
 		Value:     "old_value",
 		Essential: true,
 	})
 
-	// Create mock response with Set-Cookie headers
+	// Create mock response with Set-Cookie headers.
 	resp := &http.Response{
 		Header: http.Header{
 			"Set-Cookie": []string{
@@ -180,7 +180,7 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 
 	client.updateCookiesFromResponse(resp)
 
-	// Check existing cookie was updated
+	// Check existing cookie was updated.
 	existing := client.cookieStore.Get("existing")
 	if existing == nil || existing.Value != "new_value" {
 		t.Error("Failed to update existing cookie")
@@ -189,7 +189,7 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 		t.Error("Lost essential flag on update")
 	}
 
-	// Check new cookie was added
+	// Check new cookie was added.
 	newCookie := client.cookieStore.Get("new_cookie")
 	if newCookie == nil || newCookie.Value != "value" {
 		t.Error("Failed to add new cookie from response")
@@ -205,26 +205,26 @@ func TestBuildOrderEndpoint(t *testing.T) {
 		t.Error("Endpoint is empty")
 	}
 
-	// Check it contains the order ID
+	// Check it contains the order ID.
 	if !contains(endpoint, "TEST123") {
 		t.Error("Endpoint doesn't contain order ID")
 	}
 
-	// Check it has the GraphQL hash
+	// Check it has the GraphQL hash.
 	if !contains(endpoint, "d0622497daef19150438d07c506739d451cad6749cf45c3b4db95f2f5a0a65c4") {
 		t.Error("Endpoint doesn't contain correct GraphQL hash")
 	}
 }
 
 func TestMockOrderRequest(t *testing.T) {
-	// Create test server
+	// Create test server.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify headers
+		// Verify headers.
 		if r.Header.Get("x-apollo-operation-name") != "getOrder" {
 			t.Error("Missing or wrong Apollo operation header")
 		}
 
-		// Send mock response
+		// Send mock response.
 		response := OrderResponse{
 			Data: struct {
 				Order *Order `json:"order"`
@@ -247,25 +247,25 @@ func TestMockOrderRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client with test server
+	// Create client with test server.
 	client, _ := NewWalmartClient(ClientConfig{})
 	client.httpClient = server.Client()
 
 	// Test with mock server URL - we can't override the method directly
-	// so we'll just test that the request would be made correctly
+	// so we'll just test that the request would be made correctly.
 
-	// Add required cookies
+	// Add required cookies.
 	client.cookieStore.Set("CID", &cookies.Cookie{Value: "test"})
 	client.cookieStore.Set("SPID", &cookies.Cookie{Value: "test"})
 
-	// Since we can't override the endpoint builder, just verify the endpoint is built correctly
+	// Since we can't override the endpoint builder, just verify the endpoint is built correctly.
 	endpoint := client.buildOrderEndpoint("TEST123", true)
 	if !contains(endpoint, "TEST123") {
 		t.Error("Endpoint doesn't contain order ID")
 	}
 }
 
-// Helper function
+// Helper function.
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || len(s) > len(substr) && findSubstring(s, substr)))
 }
@@ -282,7 +282,7 @@ func findSubstring(s, substr string) bool {
 func TestInitializeFromCurl(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create test curl file
+	// Create test curl file.
 	curlContent := `curl 'https://www.walmart.com/test' \
   -b 'CID=test_cid; SPID=test_spid; auth=test_auth'`
 
@@ -300,7 +300,7 @@ func TestInitializeFromCurl(t *testing.T) {
 		t.Fatalf("Failed to initialize from curl: %v", err)
 	}
 
-	// Check essential cookies were loaded
+	// Check essential cookies were loaded.
 	cid := client.cookieStore.Get("CID")
 	if cid == nil || cid.Value != "test_cid" {
 		t.Error("CID cookie not loaded correctly")
@@ -319,7 +319,7 @@ func TestInitializeFromCurl(t *testing.T) {
 }
 
 func TestParseOrderWithDecimalQuantities(t *testing.T) {
-	// This is actual JSON from a Walmart order with weighted produce
+	// This is actual JSON from a Walmart order with weighted produce.
 	jsonData := `{
 		"data": {
 			"order": {
@@ -358,7 +358,7 @@ func TestParseOrderWithDecimalQuantities(t *testing.T) {
 	var response OrderResponse
 	err := json.Unmarshal([]byte(jsonData), &response)
 
-	// This test will FAIL with current implementation
+	// This test will FAIL with current implementation.
 	if err != nil {
 		t.Fatalf("Should handle decimal quantities, but got error: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestParseOrderWithDecimalQuantities(t *testing.T) {
 		t.Fatalf("Expected 2 items, got %d", len(response.Data.Order.Groups[0].Items))
 	}
 
-	// Check the decimal quantities parsed correctly
+	// Check the decimal quantities parsed correctly.
 	if response.Data.Order.Groups[0].Items[0].Quantity != 1.081 {
 		t.Errorf("Expected quantity 1.081, got %v", response.Data.Order.Groups[0].Items[0].Quantity)
 	}
@@ -382,7 +382,7 @@ func TestParseOrderWithDecimalQuantities(t *testing.T) {
 }
 
 func TestParseOrderWithWholeNumberQuantities(t *testing.T) {
-	// Test that whole numbers still work (quantity: 1 not 1.0 in JSON)
+	// Test that whole numbers still work (quantity: 1 not 1.0 in JSON).
 	jsonData := `{
 		"data": {
 			"order": {
@@ -407,7 +407,7 @@ func TestParseOrderWithWholeNumberQuantities(t *testing.T) {
 		t.Fatal("No items found in response")
 	}
 
-	// After fixing to float64, this should be 2.0
+	// After fixing to float64, this should be 2.0.
 	expectedQuantity := 2.0
 	if response.Data.Order.Groups[0].Items[0].Quantity != expectedQuantity {
 		t.Errorf("Expected quantity %v, got %v", expectedQuantity, response.Data.Order.Groups[0].Items[0].Quantity)
@@ -415,10 +415,10 @@ func TestParseOrderWithWholeNumberQuantities(t *testing.T) {
 }
 
 func TestWalmartClientWithLogger(t *testing.T) {
-	// Create a buffer to capture log output with debug level enabled
+	// Create a buffer to capture log output with debug level enabled.
 	var buf bytes.Buffer
 	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug, // Enable debug level to capture all logs
+		Level: slog.LevelDebug, // Enable debug level to capture all logs.
 	})
 	logger := slog.New(handler)
 
@@ -428,7 +428,7 @@ func TestWalmartClientWithLogger(t *testing.T) {
 		Logger:    logger,
 	}
 
-	// NewWalmartClient logs on initialization
+	// NewWalmartClient logs on initialization.
 	client, err := NewWalmartClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client with logger: %v", err)
@@ -438,29 +438,29 @@ func TestWalmartClientWithLogger(t *testing.T) {
 		t.Fatal("Client is nil")
 	}
 
-	// Verify logger is set
+	// Verify logger is set.
 	if client.logger == nil {
 		t.Fatal("Client logger is nil")
 	}
 
-	// Check that initialization was logged
+	// Check that initialization was logged.
 	output := buf.String()
 	if output == "" {
 		t.Errorf("Expected log output from initialization but got none")
 	}
 
-	// Verify cookie initialization was logged (at debug level when no file exists)
+	// Verify cookie initialization was logged (at debug level when no file exists).
 	if !strings.Contains(output, "cookie store initialized") && !strings.Contains(output, "no existing cookies found") {
 		t.Errorf("Expected cookie initialization log message, got: %s", output)
 	}
 }
 
 func TestWalmartClientWithoutLogger(t *testing.T) {
-	// Test with nil logger - should not crash and should not output
+	// Test with nil logger - should not crash and should not output.
 	tempDir := t.TempDir()
 	config := ClientConfig{
 		CookieDir: tempDir,
-		Logger:    nil, // Explicitly nil
+		Logger:    nil, // Explicitly nil.
 	}
 
 	client, err := NewWalmartClient(config)
@@ -472,36 +472,36 @@ func TestWalmartClientWithoutLogger(t *testing.T) {
 		t.Fatal("Client is nil")
 	}
 
-	// Verify logger is set to no-op logger (not nil)
+	// Verify logger is set to no-op logger (not nil).
 	if client.logger == nil {
 		t.Fatal("Client logger should not be nil even when config.Logger is nil")
 	}
 
 	// Perform operations that would normally log
-	// These should not panic or crash
+	// These should not panic or crash.
 	client.cookieStore.Set("test", &cookies.Cookie{
 		Value:  "test_value",
 		Source: "test",
 	})
 
-	// Save cookies (logs internally)
+	// Save cookies (logs internally).
 	_ = client.cookieStore.Save()
 
-	// If we got here without panicking, the test passes
+	// If we got here without panicking, the test passes.
 }
 
 func TestCookieStoreWithLogger(t *testing.T) {
-	// Test that CookieStore operations log correctly
+	// Test that CookieStore operations log correctly.
 	var buf bytes.Buffer
 	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug, // Enable debug level to see all logs
+		Level: slog.LevelDebug, // Enable debug level to see all logs.
 	})
 	logger := slog.New(handler)
 
 	tempDir := t.TempDir()
 	store := cookies.NewStore(filepath.Join(tempDir, "test_cookies.json"), logger)
 
-	// Save cookies - should log at debug level
+	// Save cookies - should log at debug level.
 	err := store.Save()
 	if err != nil {
 		t.Fatalf("Failed to save cookies: %v", err)
@@ -512,10 +512,10 @@ func TestCookieStoreWithLogger(t *testing.T) {
 		t.Errorf("Expected 'saving cookies' log message, got: %s", output)
 	}
 
-	// Clear buffer
+	// Clear buffer.
 	buf.Reset()
 
-	// Load cookies - should log at debug level
+	// Load cookies - should log at debug level.
 	_ = store.Load()
 
 	output = buf.String()
@@ -525,10 +525,10 @@ func TestCookieStoreWithLogger(t *testing.T) {
 }
 
 func TestLoggerPropagation(t *testing.T) {
-	// Test that logger is properly propagated to CookieStore
+	// Test that logger is properly propagated to CookieStore.
 	var buf bytes.Buffer
 	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug, // Enable debug level to capture all logs
+		Level: slog.LevelDebug, // Enable debug level to capture all logs.
 	})
 	logger := slog.New(handler)
 
@@ -543,18 +543,18 @@ func TestLoggerPropagation(t *testing.T) {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	// Verify CookieStore has logger
+	// Verify CookieStore has logger.
 	if client.cookieStore == nil {
 		t.Fatal("CookieStore logger is nil")
 	}
 
-	// NewWalmartClient should have logged during initialization
+	// NewWalmartClient should have logged during initialization.
 	output := buf.String()
 	if output == "" {
 		t.Errorf("Expected log output from client initialization, got: %s", output)
 	}
 
-	// Verify initialization logs are present (logger scoping is now caller's responsibility)
+	// Verify initialization logs are present (logger scoping is now caller's responsibility).
 	if !strings.Contains(output, "loading cookies") && !strings.Contains(output, "cookies loaded") {
 		t.Errorf("Expected cookie loading log message, got: %s", output)
 	}

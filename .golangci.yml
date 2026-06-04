@@ -1,114 +1,93 @@
+version: "2"
 run:
-  timeout: 5m
   tests: true
-  skip-dirs:
-    - vendor
-    - .git
-  skip-files:
-    - ".*_test\\.go$"
-  skip-dirs-use-default: true
-
 linters:
   enable:
-    - gofmt
-    - goimports
-    - govet
-    - errcheck
-    - staticcheck
-    - ineffassign
-    - typecheck
-    - gosimple
-    - goconst
-    - misspell
-    - unparam
-    - nakedret
-    - prealloc
-    - gocritic
-    - gosec
-    - funlen
-    - whitespace
-    - godot
     - asciicheck
     - bodyclose
     - durationcheck
     - errorlint
     - exhaustive
-    - exportloopref
+    - funlen
+    - goconst
+    - gocritic
+    - godot
+    - gosec
     - makezero
+    - misspell
+    - nakedret
     - nilerr
+    - prealloc
     - predeclared
     - unconvert
+    - unparam
     - wastedassign
-
+    - whitespace
   disable:
     - dupl
     - gocyclo
     - lll
-
-linters-settings:
-  gofmt:
-    simplify: true
-  
-  goimports:
-    local-prefixes: github.com/eshaffer321/walmart-client-go/v2
-  
-  golint:
-    min-confidence: 0.8
-  
-  govet:
-    check-shadowing: true
-  
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  
-  misspell:
-    locale: US
-  
-  funlen:
-    lines: 100
-    statements: 50
-  
-  godot:
-    scope: all
-    capital: true
-  
-  whitespace:
-    multi-if: true
-    multi-func: true
-
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    funlen:
+      lines: 100
+      statements: 50
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    godot:
+      scope: all
+      capital: true
+    govet:
+      enable:
+        - shadow
+    misspell:
+      locale: US
+    whitespace:
+      multi-if: true
+      multi-func: true
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - funlen
+          - gocyclo
+          - gosec
+        path: _test\.go
+      - linters:
+          - gosec
+        path: vendor/
+      - linters:
+          - forbidigo
+        path: cmd/
+        text: use of fmt.Print
+      - linters:
+          - godox
+        text: TODO
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-  
-  exclude-rules:
-    # Exclude some linters from running on test files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - funlen
-    
-    # Exclude known issues in vendor
-    - path: vendor/
-      linters:
-        - typecheck
-        - gosec
-    
-    # Allow fmt.Print* in main package
-    - path: cmd/
-      linters:
-        - forbidigo
-      text: "use of fmt.Print"
-    
-    # Allow TODO comments
-    - text: "TODO"
-      linters:
-        - godox
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/eshaffer321/walmart-client-go/v2
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

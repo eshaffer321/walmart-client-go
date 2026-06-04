@@ -5,15 +5,15 @@ import (
 	"time"
 )
 
-// Cookie represents a cookie with metadata for tracking updates and source
+// Cookie represents a cookie with metadata for tracking updates and source.
 type Cookie struct {
 	Value      string    `json:"value"`
 	LastUpdate time.Time `json:"last_update"`
-	Source     string    `json:"source"` // "curl", "response", "manual"
+	Source     string    `json:"source"` // "curl", "response", "manual".
 	Essential  bool      `json:"essential"`
 }
 
-// ExtractFromCurl parses cookies from a curl command string
+// ExtractFromCurl parses cookies from a curl command string.
 func ExtractFromCurl(curlCmd string) map[string]string {
 	cookies := make(map[string]string)
 	lines := strings.Split(curlCmd, "\\\n")
@@ -38,7 +38,7 @@ func ExtractFromCurl(curlCmd string) map[string]string {
 	return cookies
 }
 
-// Essential returns list of essential cookie names for authentication
+// Essential returns list of essential cookie names for authentication.
 func Essential() []string {
 	return []string{"CID", "SPID", "auth", "customer", "hasCID", "type"}
 }

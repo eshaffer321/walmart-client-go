@@ -22,7 +22,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.26'
 
     - name: Run tests
       run: go test -v -race ./...
@@ -60,7 +60,7 @@ jobs:
         sha256sum walmart-cli-* > checksums.txt
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         body_path: release_notes.md
         files: |

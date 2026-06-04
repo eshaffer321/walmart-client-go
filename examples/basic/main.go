@@ -11,15 +11,15 @@ import (
 )
 
 func main() {
-	// Create a structured logger (JSON format to stdout)
+	// Create a structured logger (JSON format to stdout).
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Initialize client with logger
-	// To disable logging, pass nil instead of logger
+	// To disable logging, pass nil instead of logger.
 	config := walmart.ClientConfig{
 		RateLimit: 2 * time.Second,
 		AutoSave:  true,
-		Logger:    logger, // Pass nil to disable all logging
+		Logger:    logger, // Pass nil to disable all logging.
 	}
 
 	client, err := walmart.NewWalmartClient(config)
@@ -27,11 +27,11 @@ func main() {
 		panic(fmt.Sprintf("Failed to create client: %v", err))
 	}
 
-	// Create a context with timeout for all operations
+	// Create a context with timeout for all operations.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Example 1: Get recent orders
+	// Example 1: Get recent orders.
 	fmt.Println("\n=== Recent Orders ===")
 	orders, err := client.GetRecentOrders(ctx, 5)
 	if err != nil {
@@ -42,15 +42,15 @@ func main() {
 		fmt.Printf("Order %s - %d items\n", order.OrderID, order.ItemCount)
 	}
 
-	// Example 2: Get specific order with full details
+	// Example 2: Get specific order with full details.
 	if len(orders) > 0 {
 		fmt.Println("\n=== Order Details ===")
 		orderID := orders[0].OrderID
 		isInStore := orders[0].FulfillmentType == "IN_STORE"
 
-		fullOrder, err := client.GetOrder(ctx, orderID, isInStore)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to get order: %v", err))
+		fullOrder, ferr := client.GetOrder(ctx, orderID, isInStore)
+		if ferr != nil {
+			panic(fmt.Sprintf("Failed to get order: %v", ferr))
 		}
 
 		fmt.Printf("Order Total: %s\n", fullOrder.PriceDetails.GrandTotal.DisplayValue)
@@ -62,7 +62,7 @@ func main() {
 		}
 	}
 
-	// Example 3: Search orders
+	// Example 3: Search orders.
 	fmt.Println("\n=== Search Results ===")
 	results, err := client.SearchOrders(ctx, "bread", 10)
 	if err != nil {

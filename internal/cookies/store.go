@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Store manages cookies with persistence and auto-updates
+// Store manages cookies with persistence and auto-updates.
 type Store struct {
 	Cookies    map[string]*Cookie `json:"cookies"`
 	LastUpdate time.Time          `json:"last_update"`
@@ -17,7 +17,7 @@ type Store struct {
 	logger     *slog.Logger
 }
 
-// NewStore creates a new cookie store
+// NewStore creates a new cookie store.
 func NewStore(filePath string, logger *slog.Logger) *Store {
 	return &Store{
 		Cookies:  make(map[string]*Cookie),
@@ -26,14 +26,14 @@ func NewStore(filePath string, logger *slog.Logger) *Store {
 	}
 }
 
-// Get retrieves a cookie by name (thread-safe)
+// Get retrieves a cookie by name (thread-safe).
 func (s *Store) Get(name string) *Cookie {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.Cookies[name]
 }
 
-// Set updates or adds a cookie (thread-safe)
+// Set updates or adds a cookie (thread-safe).
 func (s *Store) Set(name string, cookie *Cookie) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -41,7 +41,7 @@ func (s *Store) Set(name string, cookie *Cookie) {
 	s.LastUpdate = time.Now()
 }
 
-// Load reads cookies from disk
+// Load reads cookies from disk.
 func (s *Store) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -76,7 +76,7 @@ func (s *Store) Load() error {
 	return nil
 }
 
-// Save writes cookies to disk
+// Save writes cookies to disk.
 func (s *Store) Save() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -97,7 +97,8 @@ func (s *Store) Save() error {
 		return err
 	}
 
-	if err := os.WriteFile(s.FilePath, data, 0644); err != nil {
+	// Cookie files contain session credentials, so restrict to owner read/write.
+	if err := os.WriteFile(s.FilePath, data, 0600); err != nil {
 		if s.logger != nil {
 			s.logger.Error("failed to write cookie file",
 				slog.String("file_path", s.FilePath),
@@ -113,21 +114,21 @@ func (s *Store) Save() error {
 	return nil
 }
 
-// Count returns the number of cookies in the store
+// Count returns the number of cookies in the store.
 func (s *Store) Count() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.Cookies)
 }
 
-// GetAll returns a copy of all cookies (thread-safe)
+// GetAll returns a copy of all cookies (thread-safe).
 func (s *Store) GetAll() map[string]*Cookie {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	copy := make(map[string]*Cookie, len(s.Cookies))
+	snapshot := make(map[string]*Cookie, len(s.Cookies))
 	for k, v := range s.Cookies {
-		copy[k] = v
+		snapshot[k] = v
 	}
-	return copy
+	return snapshot
 }

@@ -11,15 +11,15 @@ import (
 )
 
 func main() {
-	// Create a structured logger (text format to stdout)
+	// Create a structured logger (text format to stdout).
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	// Initialize the client with your saved cookies and logger
+	// Initialize the client with your saved cookies and logger.
 	config := walmart.ClientConfig{
-		CookieFile: "cookies.json", // Path to your cookie file
+		CookieFile: "cookies.json", // Path to your cookie file.
 		RateLimit:  time.Second,
 		AutoSave:   true,
-		Logger:     logger, // Pass nil to disable all logging
+		Logger:     logger, // Pass nil to disable all logging.
 	}
 
 	client, err := walmart.NewWalmartClient(config)
@@ -27,20 +27,20 @@ func main() {
 		panic(fmt.Sprintf("Failed to create client: %v", err))
 	}
 
-	// Create a context with timeout
+	// Create a context with timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Example order ID - replace with your actual order ID
+	// Example order ID - replace with your actual order ID.
 	orderID := "200013509224581"
 
-	// Get the order ledger showing actual credit card charges
+	// Get the order ledger showing actual credit card charges.
 	ledger, err := client.GetOrderLedger(ctx, orderID)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get order ledger: %v", err))
 	}
 
-	// Display the ledger information
+	// Display the ledger information.
 	fmt.Printf("Order Ledger for Order #%s\n", ledger.OrderID)
 	fmt.Println("=" + string(make([]byte, 50)))
 
@@ -68,7 +68,7 @@ func main() {
 	fmt.Println("=" + string(make([]byte, 50)))
 	fmt.Printf("Grand Total: $%.2f\n", grandTotal)
 
-	// Example usage for matching with bank transactions
+	// Example usage for matching with bank transactions.
 	fmt.Println("\n--- Bank Transaction Matching ---")
 	fmt.Println("To match with your bank statement, look for:")
 
