@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	rateLimitedMsg = rateLimitedMsg
-	accessDeniedMsg = accessDeniedMsg
+	rateLimitedMsg  = "rate limited"
+	accessDeniedMsg = "access denied"
 )
 
 // purchaseHistoryJSON builds a single-page response with the given cursor and

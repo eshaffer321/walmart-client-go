@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	rateLimitedMsg = rateLimitedMsg
-	accessDeniedMsg = accessDeniedMsg
+	rateLimitedMsg  = "rate limited"
+	accessDeniedMsg = "access denied"
 )
 
 // newMockClient builds a client whose HTTP traffic is redirected to serverURL

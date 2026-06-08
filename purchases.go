@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-const contentTypeJSON = contentTypeJSON
-
 // PurchaseHistoryRequest represents the request parameters.
 type PurchaseHistoryRequest struct {
 	Cursor       string   `json:"cursor"`       // Empty for first page.
