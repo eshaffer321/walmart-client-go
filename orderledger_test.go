@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const paymentTypeCreditCard = paymentTypeCreditCard
+const paymentTypeCreditCard = "CREDITCARD"
 
 // testTransport redirects requests to our test server.
 type testTransport struct {

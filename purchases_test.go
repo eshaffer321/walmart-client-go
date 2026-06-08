@@ -12,11 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	rateLimitedMsg  = "rate limited"
-	accessDeniedMsg = "access denied"
-)
-
 // purchaseHistoryJSON builds a single-page response with the given cursor and
 // order count. An empty cursor signals the last page.
 func purchaseHistoryJSON(nextCursor string, orderIDs ...string) string {
