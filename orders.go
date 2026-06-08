@@ -14,17 +14,19 @@ import (
 	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
 
+const contentTypeJSON = "application/json"
+
 // GetOrder fetches an order with automatic cookie updates.
 // The context can be used to cancel the request or set a deadline.
 func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore bool) (*Order, error) {
-	// Rate limiting with context support
+	// Rate limiting with context support.
 	if !c.lastRequest.IsZero() {
 		c.logger.Debug("waiting for rate limiter")
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("request cancelled while rate limiting: %w", ctx.Err())
+			return nil, fmt.Errorf("request canceled while rate limiting: %w", ctx.Err())
 		case <-c.rateLimiter.C:
-			// continue
+			// Continue.
 		}
 	}
 	c.lastRequest = time.Now()
@@ -44,13 +46,13 @@ func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore 
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set headers
+	// Set headers.
 	c.setHeaders(req, "getOrder")
 
-	// Set cookies from store
+	// Set cookies from store.
 	c.setCookies(req)
 
-	// Execute request
+	// Execute request.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.logger.Error("request failed",
@@ -58,16 +60,20 @@ func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore 
 			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			c.logger.Debug("failed to close response body", slog.String("error", cerr.Error()))
+		}
+	}()
 
 	c.logger.Debug("received response",
 		slog.String("order_id", orderID),
 		slog.Int("status_code", resp.StatusCode))
 
-	// Update cookies from response
+	// Update cookies from response.
 	c.updateCookiesFromResponse(resp)
 
-	// Read body
+	// Read body.
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Error("failed to read response",
@@ -80,27 +86,47 @@ func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore 
 		slog.String("order_id", orderID),
 		slog.Int("response_size", len(body)))
 
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 429 {
-			c.logger.Warn("rate limited",
-				slog.String("order_id", orderID),
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
-		}
-		if resp.StatusCode == 403 || resp.StatusCode == 418 {
-			c.logger.Warn("access denied",
-				slog.String("order_id", orderID),
-				slog.Int("status_code", resp.StatusCode))
-			return nil, fmt.Errorf("access denied - cookies expired, please update from browser")
-		}
-		c.logger.Warn("non-200 response",
-			slog.String("order_id", orderID),
-			slog.Int("status_code", resp.StatusCode))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	// Check status.
+	if statusErr := c.checkOrderResponseError(resp, body, orderID); statusErr != nil {
+		return nil, statusErr
 	}
 
-	// Parse response
+	// Parse response.
+	order, err := c.parseOrderResponse(body, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate total with tip for delivery orders.
+	if order.IsDeliveryOrder() {
+		order.CalculateTotalWithTip()
+	}
+
+	// Log order fetch with appropriate details.
+	total := 0.0
+	if order.PriceDetails != nil && order.PriceDetails.GrandTotal != nil {
+		total = order.PriceDetails.GrandTotal.Value
+	}
+
+	c.logger.Info("fetched order",
+		slog.String("order_id", orderID),
+		slog.Bool("is_in_store", isInStore),
+		slog.Float64("total", total),
+		slog.Int("item_count", order.GetItemCount()))
+
+	// Auto-save cookies after successful request.
+	if err := c.cookieStore.Save(); err != nil {
+		c.logger.Warn("failed to save cookies after request",
+			slog.String("order_id", orderID),
+			slog.String("error", err.Error()))
+	}
+
+	return order, nil
+}
+
+// parseOrderResponse unmarshals an order response body and returns the order,
+// or an error when the payload is malformed or missing order data.
+func (c *WalmartClient) parseOrderResponse(body []byte, orderID string) (*Order, error) {
 	var orderResp OrderResponse
 	if err := json.Unmarshal(body, &orderResp); err != nil {
 		c.logger.Error("failed to parse response",
@@ -114,46 +140,49 @@ func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore 
 		return nil, fmt.Errorf("no order data in response")
 	}
 
-	order := orderResp.Data.Order
+	return orderResp.Data.Order, nil
+}
 
-	// Calculate total with tip for delivery orders
-	if order.IsDeliveryOrder() {
-		order.CalculateTotalWithTip()
+// checkOrderResponseError returns an error describing a non-OK order response,
+// or nil when the status is HTTP 200.
+func (c *WalmartClient) checkOrderResponseError(resp *http.Response, body []byte, orderID string) error {
+	if resp.StatusCode == http.StatusOK {
+		return nil
 	}
-
-	// Log order fetch with appropriate details
-	total := 0.0
-	if order.PriceDetails != nil && order.PriceDetails.GrandTotal != nil {
-		total = order.PriceDetails.GrandTotal.Value
+	switch resp.StatusCode {
+	case 429:
+		c.logger.Warn("rate limited",
+			slog.String("order_id", orderID),
+			slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("rate limited - cookies might be stale, try refreshing from browser")
+	case 403, 418:
+		c.logger.Warn("access denied",
+			slog.String("order_id", orderID),
+			slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("access denied - cookies expired, please update from browser")
+	default:
+		c.logger.Warn("non-200 response",
+			slog.String("order_id", orderID),
+			slog.Int("status_code", resp.StatusCode))
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
-
-	c.logger.Info("fetched order",
-		slog.String("order_id", orderID),
-		slog.Bool("is_in_store", isInStore),
-		slog.Float64("total", total),
-		slog.Int("item_count", order.GetItemCount()))
-
-	// Auto-save cookies after successful request
-	_ = c.cookieStore.Save()
-
-	return order, nil
 }
 
 // GetOrderAutoDetect tries to fetch an order, automatically detecting if it's in-store or delivery.
 // The context can be used to cancel the request or set a deadline.
 func (c *WalmartClient) GetOrderAutoDetect(ctx context.Context, orderID string) (*Order, error) {
-	// First try as in-store (most common for the user's examples)
+	// First try as in-store (most common for the user's examples).
 	order, err := c.GetOrder(ctx, orderID, true)
 	if err == nil {
 		return order, nil
 	}
 
-	// Check for cancellation before retrying
+	// Check for cancellation before retrying.
 	if ctx.Err() != nil {
-		return nil, fmt.Errorf("request cancelled: %w", ctx.Err())
+		return nil, fmt.Errorf("request canceled: %w", ctx.Err())
 	}
 
-	// If that fails, try as delivery order
+	// If that fails, try as delivery order.
 	order, err = c.GetOrder(ctx, orderID, false)
 	if err == nil {
 		return order, nil
@@ -165,13 +194,13 @@ func (c *WalmartClient) GetOrderAutoDetect(ctx context.Context, orderID string) 
 // GetDeliveryOrderWithTip fetches a delivery order and ensures tip information is included.
 // The context can be used to cancel the request or set a deadline.
 func (c *WalmartClient) GetDeliveryOrderWithTip(ctx context.Context, orderID string) (*Order, error) {
-	// Fetch as delivery order (isInStore = false)
+	// Fetch as delivery order (isInStore = false).
 	order, err := c.GetOrder(ctx, orderID, false)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate total with tip if not already present
+	// Calculate total with tip if not already present.
 	if order.PriceDetails != nil && order.PriceDetails.TotalWithTip == nil {
 		order.CalculateTotalWithTip()
 	}
@@ -211,7 +240,7 @@ func (c *WalmartClient) GetOrderAsJSON(ctx context.Context, orderID string, isIn
 	return string(jsonData), nil
 }
 
-// buildOrderEndpoint constructs the GraphQL endpoint URL for fetching order details
+// buildOrderEndpoint constructs the GraphQL endpoint URL for fetching order details.
 func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) string {
 	variables := map[string]interface{}{
 		"orderId":              orderID,
@@ -224,7 +253,10 @@ func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) strin
 		"includeFeesDetails":   true,
 	}
 
-	variablesJSON, _ := json.Marshal(variables)
+	variablesJSON, err := json.Marshal(variables)
+	if err != nil {
+		c.logger.Error("failed to marshal order variables", slog.String("error", err.Error()))
+	}
 	params := url.Values{}
 	params.Set("variables", string(variablesJSON))
 
@@ -232,12 +264,12 @@ func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) strin
 		params.Encode())
 }
 
-// setHeaders sets standard HTTP headers required by Walmart's API
+// setHeaders sets standard HTTP headers required by Walmart's API.
 func (c *WalmartClient) setHeaders(req *http.Request, operationName string) {
 	headers := map[string]string{
-		"accept":                  "application/json",
+		"accept":                  contentTypeJSON,
 		"accept-language":         "en-US",
-		"content-type":            "application/json",
+		"content-type":            contentTypeJSON,
 		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
 		"x-apollo-operation-name": operationName,
 		"x-o-gql-query":           fmt.Sprintf("query %s", operationName),
@@ -262,13 +294,13 @@ func (c *WalmartClient) setHeaders(req *http.Request, operationName string) {
 	}
 }
 
-// setCookies adds all cookies from the store to the request
+// setCookies adds all cookies from the store to the request.
 func (c *WalmartClient) setCookies(req *http.Request) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	allCookies := c.cookieStore.GetAll()
-	var cookiePairs []string
+	cookiePairs := make([]string, 0, len(allCookies))
 	for name, cookie := range allCookies {
 		cookiePairs = append(cookiePairs, fmt.Sprintf("%s=%s", name, cookie.Value))
 	}
@@ -278,7 +310,7 @@ func (c *WalmartClient) setCookies(req *http.Request) {
 	}
 }
 
-// updateCookiesFromResponse updates cookie store with Set-Cookie headers
+// updateCookiesFromResponse updates cookie store with Set-Cookie headers.
 func (c *WalmartClient) updateCookiesFromResponse(resp *http.Response) {
 	setCookies := resp.Header["Set-Cookie"]
 	if len(setCookies) == 0 {
@@ -297,7 +329,7 @@ func (c *WalmartClient) updateCookiesFromResponse(resp *http.Response) {
 				name := strings.TrimSpace(nameValue[0])
 				value := strings.TrimSpace(nameValue[1])
 
-				// Check if this is an update
+				// Check if this is an update.
 				existing := c.cookieStore.Get(name)
 				if existing != nil && existing.Value != value {
 					updatedCount++

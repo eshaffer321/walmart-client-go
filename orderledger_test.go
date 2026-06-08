@@ -13,18 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testTransport redirects requests to our test server
+const paymentTypeCreditCard = "CREDITCARD"
+
+// testTransport redirects requests to our test server.
 type testTransport struct {
 	serverURL string
 }
 
 func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Replace the host with our test server
+	// Replace the host with our test server.
 	testURL, _ := url.Parse(t.serverURL)
 	req.URL.Host = testURL.Host
 	req.URL.Scheme = testURL.Scheme
 
-	// Use default transport for actual request
+	// Use default transport for actual request.
 	return http.DefaultTransport.RoundTrip(req)
 }
 
@@ -121,7 +123,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224581",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "VISA",
 						LastFour:     "0953",
 						FinalCharges: []float64{178.96, 4.12},
@@ -187,7 +189,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224582",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "MASTERCARD",
 						LastFour:     "1234",
 						FinalCharges: []float64{100.00, -15.00},
@@ -238,7 +240,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224583",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "AMEX",
 						LastFour:     "5678",
 						FinalCharges: []float64{250.50},
@@ -316,7 +318,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224586",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "DISCOVER",
 						LastFour:     "",
 						FinalCharges: []float64{75.00},
@@ -366,7 +368,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224587",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "VISA",
 						LastFour:     "9999",
 						FinalCharges: []float64{50.00, 25.00},
@@ -408,7 +410,7 @@ func TestGetOrderLedger(t *testing.T) {
 			client, err := NewWalmartClient(config)
 			require.NoError(t, err)
 
-			// Override the httpClient to use our test server
+			// Override the httpClient to use our test server.
 			client.httpClient = &http.Client{
 				Transport: &testTransport{
 					serverURL: server.URL,
@@ -431,7 +433,7 @@ func TestGetOrderLedger(t *testing.T) {
 	}
 }
 
-// TestGetOrderLedgerRateLimiting verifies rate limiting behavior
+// TestGetOrderLedgerRateLimiting verifies rate limiting behavior.
 func TestGetOrderLedgerRateLimiting(t *testing.T) {
 	requestTimes := []time.Time{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -448,7 +450,7 @@ func TestGetOrderLedgerRateLimiting(t *testing.T) {
 	defer server.Close()
 
 	config := ClientConfig{
-		RateLimit: 100 * time.Millisecond, // 100ms between requests
+		RateLimit: 100 * time.Millisecond, // 100ms between requests.
 		AutoSave:  false,
 	}
 	client, err := NewWalmartClient(config)
@@ -460,27 +462,27 @@ func TestGetOrderLedgerRateLimiting(t *testing.T) {
 		},
 	}
 
-	// Make 3 ledger requests
+	// Make 3 ledger requests.
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
 		_, err := client.GetOrderLedger(ctx, "test-order")
 		require.NoError(t, err)
 	}
 
-	// Verify timing: first request immediate, subsequent requests delayed
+	// Verify timing: first request immediate, subsequent requests delayed.
 	require.Len(t, requestTimes, 3)
 
 	// First request should be immediate (no delay)
-	// Second request should be ~100ms after first
+	// Second request should be ~100ms after first.
 	timeDiff1 := requestTimes[1].Sub(requestTimes[0])
 	assert.GreaterOrEqual(t, timeDiff1.Milliseconds(), int64(90), "Second request should wait ~100ms")
 
-	// Third request should be ~100ms after second
+	// Third request should be ~100ms after second.
 	timeDiff2 := requestTimes[2].Sub(requestTimes[1])
 	assert.GreaterOrEqual(t, timeDiff2.Milliseconds(), int64(90), "Third request should wait ~100ms")
 }
 
-// TestGetOrderLedger429Response verifies 429 error handling
+// TestGetOrderLedger429Response verifies 429 error handling.
 func TestGetOrderLedger429Response(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -491,7 +493,7 @@ func TestGetOrderLedger429Response(t *testing.T) {
 	config := ClientConfig{
 		RateLimit:  time.Millisecond * 10,
 		AutoSave:   false,
-		MaxRetries: -1, // Disable retries for this test
+		MaxRetries: -1, // Disable retries for this test.
 	}
 	client, err := NewWalmartClient(config)
 	require.NoError(t, err)
@@ -509,7 +511,7 @@ func TestGetOrderLedger429Response(t *testing.T) {
 	assert.Contains(t, err.Error(), "rate limited")
 }
 
-// TestGetOrderLedger403Response verifies 403/418 error handling
+// TestGetOrderLedger403Response verifies 403/418 error handling.
 func TestGetOrderLedger403Response(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -550,7 +552,7 @@ func TestGetOrderLedger403Response(t *testing.T) {
 	}
 }
 
-// TestGetOrderLedgerRateLimiterCancellation verifies rate limiter respects context cancellation
+// TestGetOrderLedgerRateLimiterCancellation verifies rate limiter respects context cancellation.
 func TestGetOrderLedgerRateLimiterCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -558,7 +560,7 @@ func TestGetOrderLedgerRateLimiterCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client with long rate limit (10 seconds between requests)
+	// Create client with long rate limit (10 seconds between requests).
 	config := ClientConfig{
 		LedgerRateLimit: 10 * time.Second,
 		AutoSave:        false,
@@ -572,12 +574,12 @@ func TestGetOrderLedgerRateLimiterCancellation(t *testing.T) {
 		},
 	}
 
-	// Make first request to set lastLedgerRequest
+	// Make first request to set lastLedgerRequest.
 	ctx := context.Background()
 	_, err = client.GetOrderLedger(ctx, "first-order")
 	require.NoError(t, err)
 
-	// Second request with short timeout - should fail during rate limit wait
+	// Second request with short timeout - should fail during rate limit wait.
 	ctx2, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -589,14 +591,14 @@ func TestGetOrderLedgerRateLimiterCancellation(t *testing.T) {
 	assert.Nil(t, ledger)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Contains(t, err.Error(), "rate limiting")
-	// Should have cancelled quickly, not waited 10 seconds
+	// Should have canceled quickly, not waited 10 seconds.
 	assert.Less(t, elapsed, 1*time.Second)
 }
 
-// TestGetOrderLedgerContextCancellation verifies context cancellation works
+// TestGetOrderLedgerContextCancellation verifies context cancellation works.
 func TestGetOrderLedgerContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate slow response
+		// Simulate slow response.
 		time.Sleep(500 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"data": {"getOrderLedger": {"paymentMethodsLedgers": []}}}`))
@@ -616,14 +618,14 @@ func TestGetOrderLedgerContextCancellation(t *testing.T) {
 		},
 	}
 
-	// Create a context that we cancel immediately
+	// Create a context that we cancel immediately.
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	ledger, err := client.GetOrderLedger(ctx, "test-order")
 	require.Error(t, err)
 	assert.Nil(t, ledger)
-	// Should contain context deadline exceeded error
+	// Should contain context deadline exceeded error.
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
@@ -786,7 +788,7 @@ func TestOrderLedgerResponseUnmarshaling(t *testing.T) {
 
 	ledgers := response.Data.GetOrderLedger.PaymentMethodsLedgers
 	require.Len(t, ledgers, 1)
-	assert.Equal(t, "CREDITCARD", ledgers[0].PaymentType)
+	assert.Equal(t, paymentTypeCreditCard, ledgers[0].PaymentType)
 	assert.Equal(t, "VISA", ledgers[0].CardType)
 	assert.Equal(t, "Ending in 0953", ledgers[0].Description)
 

@@ -13,7 +13,7 @@ import (
 	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
 
-// WalmartClient provides access to Walmart's order history and purchase data API
+// WalmartClient provides access to Walmart's order history and purchase data API.
 type WalmartClient struct {
 	httpClient        *http.Client
 	cookieStore       *cookies.Store
@@ -26,15 +26,20 @@ type WalmartClient struct {
 	logger            *slog.Logger
 }
 
-// NewWalmartClient creates a new Walmart API client with the given configuration
+// NewWalmartClient creates a new Walmart API client with the given configuration.
 func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
-	// Set defaults
+	// Set defaults.
 	if config.CookieFile == "" {
 		if config.CookieDir == "" {
-			homeDir, _ := os.UserHomeDir()
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("failed to determine home directory: %w", err)
+			}
 			config.CookieDir = filepath.Join(homeDir, ".walmart-api")
 		}
-		_ = os.MkdirAll(config.CookieDir, 0755)
+		if err := os.MkdirAll(config.CookieDir, 0750); err != nil {
+			return nil, fmt.Errorf("failed to create cookie directory: %w", err)
+		}
 		config.CookieFile = filepath.Join(config.CookieDir, "cookies.json")
 	}
 
@@ -42,30 +47,30 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 		config.RateLimit = 2 * time.Second
 	}
 
-	// Set ledger rate limit (defaults to regular rate limit if not specified)
+	// Set ledger rate limit (defaults to regular rate limit if not specified).
 	ledgerRate := config.LedgerRateLimit
 	if ledgerRate == 0 {
 		ledgerRate = config.RateLimit
 	}
 
-	// Set max retries (defaults to 3 if not specified)
+	// Set max retries (defaults to 3 if not specified).
 	maxRetries := config.MaxRetries
 	if maxRetries == 0 {
 		maxRetries = 3
 	}
 
 	// Use provided logger or no-op logger if none provided
-	// Note: Caller is responsible for adding any scoping attributes (e.g., system="walmart")
+	// Note: Caller is responsible for adding any scoping attributes (e.g., system="walmart").
 	logger := config.Logger
 	if logger == nil {
-		// Use no-op logger that discards all output
+		// Use no-op logger that discards all output.
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 
-	// Initialize cookie store
+	// Initialize cookie store.
 	store := cookies.NewStore(config.CookieFile, logger)
 
-	// Try to load existing cookies
+	// Try to load existing cookies.
 	if err := store.Load(); err == nil {
 		logger.Info("cookie store initialized",
 			slog.String("file_path", config.CookieFile),
@@ -77,7 +82,7 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 	client := &WalmartClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
-			// Don't follow redirects automatically
+			// Don't follow redirects automatically.
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -92,9 +97,11 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 	return client, nil
 }
 
-// InitializeFromCurl loads cookies from a curl command file
+// InitializeFromCurl loads cookies from a curl command file.
 func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
-	data, err := os.ReadFile(curlFile)
+	// The curl file path is supplied by the caller of this library, not by
+	// untrusted input, so reading it directly is intended behavior.
+	data, err := os.ReadFile(curlFile) //nolint:gosec // G304: caller-controlled path
 	if err != nil {
 		return fmt.Errorf("failed to read curl file: %w", err)
 	}
@@ -104,7 +111,7 @@ func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Mark essential cookies
+	// Mark essential cookies.
 	essentialCookies := cookies.Essential()
 
 	for name, value := range parsedCookies {
@@ -115,7 +122,7 @@ func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 			Essential:  false,
 		}
 
-		// Mark if essential
+		// Mark if essential.
 		for _, essential := range essentialCookies {
 			if name == essential {
 				cookie.Essential = true
@@ -126,7 +133,7 @@ func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 		c.cookieStore.Set(name, cookie)
 	}
 
-	// Auto-save
+	// Auto-save.
 	if err := c.cookieStore.Save(); err != nil {
 		return fmt.Errorf("failed to save cookies: %w", err)
 	}
@@ -134,7 +141,7 @@ func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 	return nil
 }
 
-// Status shows the current state of cookies
+// Status shows the current state of cookies.
 func (c *WalmartClient) Status() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -146,7 +153,7 @@ func (c *WalmartClient) Status() {
 	fmt.Printf("Cookie file: %s\n", c.cookieStore.FilePath)
 	fmt.Printf("Last update: %s\n", c.cookieStore.LastUpdate.Format(time.RFC3339))
 
-	// Count by source
+	// Count by source.
 	sources := make(map[string]int)
 	essential := 0
 	stale := 0
@@ -156,13 +163,13 @@ func (c *WalmartClient) Status() {
 		if cookie.Essential {
 			essential++
 		}
-		// Consider cookies older than 1 hour as potentially stale
+		// Consider cookies older than 1 hour as potentially stale.
 		if time.Since(cookie.LastUpdate) > time.Hour {
 			stale++
 		}
 	}
 
-	// Log warnings for stale cookies
+	// Log warnings for stale cookies.
 	if stale > 0 {
 		c.logger.Warn("stale cookies detected",
 			slog.Int("stale_count", stale),
@@ -177,7 +184,7 @@ func (c *WalmartClient) Status() {
 		fmt.Printf("  %s: %d\n", source, count)
 	}
 
-	// Show essential cookies status
+	// Show essential cookies status.
 	fmt.Println("\nEssential cookies:")
 	essentials := []string{"CID", "SPID", "auth", "customer"}
 	missingEssential := []string{}
@@ -195,14 +202,14 @@ func (c *WalmartClient) Status() {
 		}
 	}
 
-	// Log warning for missing essential cookies
+	// Log warning for missing essential cookies.
 	if len(missingEssential) > 0 {
 		c.logger.Warn("missing essential cookies",
 			slog.Any("missing_cookies", missingEssential))
 	}
 }
 
-// RefreshFromBrowser prompts user to get fresh cookies
+// RefreshFromBrowser prompts user to get fresh cookies.
 func (c *WalmartClient) RefreshFromBrowser() error {
 	fmt.Println("\n=== Refresh Cookies from Browser ===")
 	fmt.Println("1. Open Chrome/Firefox and log into walmart.com")
@@ -215,21 +222,24 @@ func (c *WalmartClient) RefreshFromBrowser() error {
 	fmt.Print("\nPath to curl file (or 'skip' to cancel): ")
 
 	var path string
-	_, _ = fmt.Scanln(&path)
+	if _, err := fmt.Scanln(&path); err != nil {
+		// Treat an empty line or read error as a cancellation.
+		path = ""
+	}
 
 	if path == "skip" || path == "" {
-		return fmt.Errorf("refresh cancelled")
+		return fmt.Errorf("refresh canceled")
 	}
 
 	return c.InitializeFromCurl(path)
 }
 
-// CookieCount returns the number of cookies currently stored
+// CookieCount returns the number of cookies currently stored.
 func (c *WalmartClient) CookieCount() int {
 	return c.cookieStore.Count()
 }
 
-// ExportCookies exports cookies to a simple JSON format (name -> value map)
+// ExportCookies exports cookies to a simple JSON format (name -> value map).
 func (c *WalmartClient) ExportCookies() map[string]string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -242,7 +252,7 @@ func (c *WalmartClient) ExportCookies() map[string]string {
 	return simple
 }
 
-// SaveCookies persists the current cookie store to disk
+// SaveCookies persists the current cookie store to disk.
 func (c *WalmartClient) SaveCookies() error {
 	return c.cookieStore.Save()
 }

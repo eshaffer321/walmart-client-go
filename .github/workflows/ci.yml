@@ -6,37 +6,38 @@ on:
   pull_request:
     branches: [ main ]
 
+# Go version used by single-version jobs (lint, build, security). Bump as new
+# releases land; the test job below intentionally also covers the go.mod floor.
+# Note: lint uses 1.25 because golangci-lint is built with 1.25.
+env:
+  GO_VERSION: '1.26'
+  LINT_GO_VERSION: '1.25'
+
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.21', '1.22', '1.23']
-    
+        # Oldest supported (go.mod floor) plus the two currently maintained releases.
+        go-version: ['1.21', '1.25', '1.26']
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go-version }}
-    
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-    
+        # setup-go@v5 caches the module and build caches by default.
+
     - name: Download dependencies
       run: go mod download
-    
+
     - name: Run tests
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-    
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
@@ -58,15 +59,15 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
-    
-    - name: Run go fmt
-      run: |
-        gofmt -l .
-        test -z "$(gofmt -l .)"
-    
-    - name: Run go vet
-      run: go vet ./...
+        go-version: ${{ env.LINT_GO_VERSION }}
+
+    # golangci-lint v2 runs the linters configured in .golangci.yml, which
+    # includes gofmt/goimports (as formatters) and govet, so dedicated fmt/vet
+    # steps are no longer needed here.
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: latest
 
   build:
     name: Build
@@ -74,17 +75,16 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.21']
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }}
-    
+        go-version: ${{ env.GO_VERSION }}
+
     - name: Build library
       run: |
         go build -v .
@@ -101,7 +101,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
-    
+        go-version: ${{ env.GO_VERSION }}
+
     - name: Run go mod verify
       run: go mod download && go mod verify || true
