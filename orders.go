@@ -14,7 +14,7 @@ import (
 	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
 
-const contentTypeJSON = contentTypeJSON
+const contentTypeJSON = "application/json"
 
 // GetOrder fetches an order with automatic cookie updates.
 // The context can be used to cancel the request or set a deadline.
