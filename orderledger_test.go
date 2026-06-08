@@ -47,7 +47,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": paymentTypeCreditCard,
+								"paymentType": "CREDITCARD",
 								"cardType": "VISA",
 								"description": "Ending in 0953",
 								"transactions": [
@@ -155,7 +155,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": paymentTypeCreditCard,
+								"paymentType": "CREDITCARD",
 								"cardType": "MASTERCARD",
 								"description": "Ending in 1234",
 								"transactions": [
@@ -211,7 +211,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": paymentTypeCreditCard,
+								"paymentType": "CREDITCARD",
 								"cardType": "AMEX",
 								"description": "Ending in 5678",
 								"transactions": [
@@ -289,7 +289,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": paymentTypeCreditCard,
+								"paymentType": "CREDITCARD",
 								"cardType": "DISCOVER",
 								"description": "",
 								"transactions": [
@@ -339,7 +339,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": paymentTypeCreditCard,
+								"paymentType": "CREDITCARD",
 								"cardType": "VISA",
 								"description": "Ending in 9999",
 								"transactions": [
@@ -756,7 +756,7 @@ func TestOrderLedgerResponseUnmarshaling(t *testing.T) {
 			"getOrderLedger": {
 				"paymentMethodsLedgers": [
 					{
-						"paymentType": paymentTypeCreditCard,
+						"paymentType": "CREDITCARD",
 						"cardType": "VISA",
 						"description": "Ending in 0953",
 						"transactions": [
