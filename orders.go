@@ -14,6 +14,8 @@ import (
 	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
 
+const contentTypeJSON = contentTypeJSON
+
 // GetOrder fetches an order with automatic cookie updates.
 // The context can be used to cancel the request or set a deadline.
 func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore bool) (*Order, error) {
@@ -265,9 +267,9 @@ func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) strin
 // setHeaders sets standard HTTP headers required by Walmart's API.
 func (c *WalmartClient) setHeaders(req *http.Request, operationName string) {
 	headers := map[string]string{
-		"accept":                  "application/json",
+		"accept":                  contentTypeJSON,
 		"accept-language":         "en-US",
-		"content-type":            "application/json",
+		"content-type":            contentTypeJSON,
 		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
 		"x-apollo-operation-name": operationName,
 		"x-o-gql-query":           fmt.Sprintf("query %s", operationName),

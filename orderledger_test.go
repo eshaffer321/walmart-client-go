@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const paymentTypeCreditCard = paymentTypeCreditCard
+
 // testTransport redirects requests to our test server.
 type testTransport struct {
 	serverURL string
@@ -45,7 +47,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": "CREDITCARD",
+								"paymentType": paymentTypeCreditCard,
 								"cardType": "VISA",
 								"description": "Ending in 0953",
 								"transactions": [
@@ -121,7 +123,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224581",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "VISA",
 						LastFour:     "0953",
 						FinalCharges: []float64{178.96, 4.12},
@@ -153,7 +155,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": "CREDITCARD",
+								"paymentType": paymentTypeCreditCard,
 								"cardType": "MASTERCARD",
 								"description": "Ending in 1234",
 								"transactions": [
@@ -187,7 +189,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224582",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "MASTERCARD",
 						LastFour:     "1234",
 						FinalCharges: []float64{100.00, -15.00},
@@ -209,7 +211,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": "CREDITCARD",
+								"paymentType": paymentTypeCreditCard,
 								"cardType": "AMEX",
 								"description": "Ending in 5678",
 								"transactions": [
@@ -238,7 +240,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224583",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "AMEX",
 						LastFour:     "5678",
 						FinalCharges: []float64{250.50},
@@ -287,7 +289,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": "CREDITCARD",
+								"paymentType": paymentTypeCreditCard,
 								"cardType": "DISCOVER",
 								"description": "",
 								"transactions": [
@@ -316,7 +318,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224586",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "DISCOVER",
 						LastFour:     "",
 						FinalCharges: []float64{75.00},
@@ -337,7 +339,7 @@ func TestGetOrderLedger(t *testing.T) {
 					"getOrderLedger": {
 						"paymentMethodsLedgers": [
 							{
-								"paymentType": "CREDITCARD",
+								"paymentType": paymentTypeCreditCard,
 								"cardType": "VISA",
 								"description": "Ending in 9999",
 								"transactions": [
@@ -366,7 +368,7 @@ func TestGetOrderLedger(t *testing.T) {
 				OrderID: "200013509224587",
 				PaymentMethods: []PaymentMethodCharges{
 					{
-						PaymentType:  "CREDITCARD",
+						PaymentType:  paymentTypeCreditCard,
 						CardType:     "VISA",
 						LastFour:     "9999",
 						FinalCharges: []float64{50.00, 25.00},
@@ -754,7 +756,7 @@ func TestOrderLedgerResponseUnmarshaling(t *testing.T) {
 			"getOrderLedger": {
 				"paymentMethodsLedgers": [
 					{
-						"paymentType": "CREDITCARD",
+						"paymentType": paymentTypeCreditCard,
 						"cardType": "VISA",
 						"description": "Ending in 0953",
 						"transactions": [
@@ -786,7 +788,7 @@ func TestOrderLedgerResponseUnmarshaling(t *testing.T) {
 
 	ledgers := response.Data.GetOrderLedger.PaymentMethodsLedgers
 	require.Len(t, ledgers, 1)
-	assert.Equal(t, "CREDITCARD", ledgers[0].PaymentType)
+	assert.Equal(t, paymentTypeCreditCard, ledgers[0].PaymentType)
 	assert.Equal(t, "VISA", ledgers[0].CardType)
 	assert.Equal(t, "Ending in 0953", ledgers[0].Description)
 

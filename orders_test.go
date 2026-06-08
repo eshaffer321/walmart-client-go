@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	rateLimitedMsg = rateLimitedMsg
+	accessDeniedMsg = accessDeniedMsg
+)
+
 // newMockClient builds a client whose HTTP traffic is redirected to serverURL
 // and whose cookies are stored under a temp dir so tests stay hermetic.
 func newMockClient(t *testing.T, serverURL string) *WalmartClient {
@@ -100,9 +105,9 @@ func TestGetOrderStatusErrors(t *testing.T) {
 		statusCode int
 		wantErrMsg string
 	}{
-		{"rate limited", http.StatusTooManyRequests, "rate limited"},
-		{"forbidden", http.StatusForbidden, "access denied"},
-		{"teapot", http.StatusTeapot, "access denied"},
+		{rateLimitedMsg, http.StatusTooManyRequests, rateLimitedMsg},
+		{"forbidden", http.StatusForbidden, accessDeniedMsg},
+		{"teapot", http.StatusTeapot, accessDeniedMsg},
 		{"server error", http.StatusInternalServerError, "HTTP 500"},
 	}
 

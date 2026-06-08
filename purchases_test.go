@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	rateLimitedMsg = rateLimitedMsg
+	accessDeniedMsg = accessDeniedMsg
+)
+
 // purchaseHistoryJSON builds a single-page response with the given cursor and
 // order count. An empty cursor signals the last page.
 func purchaseHistoryJSON(nextCursor string, orderIDs ...string) string {
@@ -55,9 +60,9 @@ func TestGetPurchaseHistoryStatusErrors(t *testing.T) {
 		statusCode int
 		wantErrMsg string
 	}{
-		{"rate limited", http.StatusTooManyRequests, "rate limited"},
-		{"forbidden", http.StatusForbidden, "access denied"},
-		{"teapot", http.StatusTeapot, "access denied"},
+		{rateLimitedMsg, http.StatusTooManyRequests, rateLimitedMsg},
+		{"forbidden", http.StatusForbidden, accessDeniedMsg},
+		{"teapot", http.StatusTeapot, accessDeniedMsg},
 		{"server error", http.StatusInternalServerError, "HTTP 500"},
 	}
 

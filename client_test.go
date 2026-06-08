@@ -15,6 +15,11 @@ import (
 	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
 
+const (
+	testValue  = "test_value"
+	testSource = "test"
+)
+
 func TestNewWalmartClient(t *testing.T) {
 	tempDir := t.TempDir()
 	config := ClientConfig{
@@ -48,9 +53,9 @@ func TestCookieStore(t *testing.T) {
 
 	// Test Set and Get.
 	cookie := &cookies.Cookie{
-		Value:      "test_value",
+		Value:      testValue,
 		LastUpdate: time.Now(),
-		Source:     "test",
+		Source:     testSource,
 		Essential:  true,
 	}
 
@@ -61,8 +66,8 @@ func TestCookieStore(t *testing.T) {
 		t.Fatal("Failed to retrieve cookie")
 	}
 
-	if retrieved.Value != "test_value" {
-		t.Errorf("Expected value 'test_value', got '%s'", retrieved.Value)
+	if retrieved.Value != testValue {
+		t.Errorf("Expected value %q, got %q", testValue, retrieved.Value)
 	}
 
 	// Test Save and Load.
@@ -83,7 +88,7 @@ func TestCookieStore(t *testing.T) {
 		t.Fatal("Failed to load cookie from file")
 	}
 
-	if loaded.Value != "test_value" {
+	if loaded.Value != testValue {
 		t.Errorf("Loaded cookie has wrong value: %s", loaded.Value)
 	}
 }
@@ -479,9 +484,9 @@ func TestWalmartClientWithoutLogger(t *testing.T) {
 
 	// Perform operations that would normally log
 	// These should not panic or crash.
-	client.cookieStore.Set("test", &cookies.Cookie{
-		Value:  "test_value",
-		Source: "test",
+	client.cookieStore.Set(testSource, &cookies.Cookie{
+		Value:  testValue,
+		Source: testSource,
 	})
 
 	// Save cookies (logs internally).

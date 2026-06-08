@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const contentTypeJSON = contentTypeJSON
+
 // PurchaseHistoryRequest represents the request parameters.
 type PurchaseHistoryRequest struct {
 	Cursor       string   `json:"cursor"`       // Empty for first page.
@@ -321,9 +323,9 @@ func (c *WalmartClient) buildPurchaseHistoryEndpoint(req PurchaseHistoryRequest)
 // Set headers specific to purchase history.
 func (c *WalmartClient) setPurchaseHistoryHeaders(req *http.Request) {
 	headers := map[string]string{
-		"accept":                  "application/json",
+		"accept":                  contentTypeJSON,
 		"accept-language":         "en-US",
-		"content-type":            "application/json",
+		"content-type":            contentTypeJSON,
 		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
 		"x-apollo-operation-name": "PurchaseHistoryV2",
 		"x-o-gql-query":           "query PurchaseHistoryV2",
