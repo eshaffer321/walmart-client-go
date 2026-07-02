@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-07-01
+
+### Changed
+- `-refresh` now gives step-by-step instructions (click "View details" on an order, search Network tab for `getOrder`) instead of vague "go to your orders page" guidance
+- `-refresh` defaults the cURL file path to `curl.txt` in the repo root (gitignored) so users can just press Enter instead of typing a path
+
 ## [2.0.1] - 2025-12-24
 
 ### Fixed
