@@ -241,7 +241,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.2...HEAD
+[2.0.2]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.9...v2.0.0
 [1.0.9]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.8...v1.0.9
