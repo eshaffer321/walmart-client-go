@@ -286,11 +286,12 @@ The order ledger provides these actual charge amounts, making it possible to acc
 
 1. **Get your cookies from Walmart.com:**
    - Log into walmart.com in Chrome/Firefox
-   - Go to your orders page
-   - Open DevTools (F12) → Network tab
-   - Refresh the page
-   - Find any 'getOrder' request
-   - Right-click → Copy → Copy as cURL
+   - Go to `https://www.walmart.com/orders`
+   - Click "View details" on any order
+   - Open DevTools (Cmd+Option+I / F12) → Network tab
+   - Refresh the page (Cmd+R / F5)
+   - In the Network tab's search bar, type `getOrder`
+   - Right-click the request that appears → Copy → Copy as cURL
    - Save to a file (e.g., `curl.txt`)
 
 2. **Initialize the CLI:**

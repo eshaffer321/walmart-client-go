@@ -1,12 +1,14 @@
 package walmart
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -209,29 +211,55 @@ func (c *WalmartClient) Status() {
 	}
 }
 
-// RefreshFromBrowser prompts user to get fresh cookies.
-func (c *WalmartClient) RefreshFromBrowser() error {
-	fmt.Println("\n=== Refresh Cookies from Browser ===")
-	fmt.Println("1. Open Chrome/Firefox and log into walmart.com")
-	fmt.Println("2. Go to your orders page")
-	fmt.Println("3. Open DevTools (F12) → Network tab")
-	fmt.Println("4. Refresh the page")
-	fmt.Println("5. Find any 'getOrder' request")
-	fmt.Println("6. Right-click → Copy → Copy as cURL")
-	fmt.Println("7. Paste into a file and provide the path below")
-	fmt.Print("\nPath to curl file (or 'skip' to cancel): ")
+// defaultCurlPath is where RefreshFromBrowser tells the user to paste their
+// captured cURL request. It lives in the repo root, which is gitignored
+// (see .gitignore: "curl.txt"), so it's safe to reuse as a fixed drop point.
+const defaultCurlPath = "curl.txt"
 
-	var path string
-	if _, err := fmt.Scanln(&path); err != nil {
-		// Treat an empty line or read error as a cancellation.
-		path = ""
+// RefreshFromBrowser walks the user through capturing a fresh 'getOrder'
+// request from the browser and re-initializing cookies from it.
+func (c *WalmartClient) RefreshFromBrowser() error {
+	absDefault, err := filepath.Abs(defaultCurlPath)
+	if err != nil {
+		absDefault = defaultCurlPath
 	}
 
-	if path == "skip" || path == "" {
+	fmt.Println()
+	fmt.Println("┌─────────────────────────────────────────────────────────┐")
+	fmt.Println("│  Refresh Cookies from Browser                            │")
+	fmt.Println("└─────────────────────────────────────────────────────────┘")
+	fmt.Println()
+	fmt.Println("  1. Open Chrome and go to: https://www.walmart.com/orders")
+	fmt.Println("  2. Click 'View details' on any order")
+	fmt.Println("  3. Open DevTools  (Cmd+Option+I / F12)")
+	fmt.Println("  4. Click the 'Network' tab")
+	fmt.Println("  5. Refresh the page  (Cmd+R / F5)")
+	fmt.Println("  6. In the Network search bar, type:  getOrder")
+	fmt.Println("  7. Right-click the request that appears → Copy → Copy as cURL")
+	fmt.Printf("  8. Paste it into a file at:\n\n       %s\n\n", absDefault)
+	fmt.Printf("Press Enter to use that path, or type a different one (or 'skip' to cancel)\n> ")
+
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		// Treat an empty line or read error as a cancellation.
+		line = ""
+	}
+	path := strings.TrimSpace(line)
+
+	if path == "skip" {
 		return fmt.Errorf("refresh canceled")
 	}
+	if path == "" {
+		path = defaultCurlPath
+	}
 
-	return c.InitializeFromCurl(path)
+	if err := c.InitializeFromCurl(path); err != nil {
+		return err
+	}
+
+	fmt.Printf("\n✅ Cookies refreshed and saved.\n")
+	return nil
 }
 
 // CookieCount returns the number of cookies currently stored.
