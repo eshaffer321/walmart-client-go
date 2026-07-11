@@ -58,6 +58,38 @@ func (o *Order) GetItems() []OrderItem {
 	return items
 }
 
+// GetRefundedItems returns order items that Walmart marked with a return ID.
+// Walmart renders category and subgroup views of the same item, so results are
+// deduplicated by return ID and Walmart item ID.
+func (o *Order) GetRefundedItems() []OrderItem {
+	seen := make(map[string]bool)
+	var refunded []OrderItem
+	appendItems := func(items []OrderItem) {
+		for _, item := range items {
+			if item.ReturnID == "" {
+				continue
+			}
+			key := item.ReturnID + ":" + item.ID
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			refunded = append(refunded, item)
+		}
+	}
+	for _, group := range o.Groups {
+		for _, category := range group.Categories {
+			appendItems(category.Items)
+		}
+		for _, subgroup := range group.SubGroups {
+			for _, category := range subgroup.Categories {
+				appendItems(category.Items)
+			}
+		}
+	}
+	return refunded
+}
+
 // Customer information.
 type Customer struct {
 	ID                string  `json:"id"`
@@ -79,6 +111,18 @@ type OrderGroup struct {
 	Store           *Store          `json:"store"`
 	PriceDetails    *PriceDetails   `json:"priceDetails"`
 	PaymentDetails  *PaymentDetails `json:"paymentDetails"`
+	Categories      []OrderCategory `json:"categories"`
+	SubGroups       []OrderSubGroup `json:"subGroups"`
+}
+
+// OrderCategory is a Walmart UI grouping of fulfilled order items.
+type OrderCategory struct {
+	Items []OrderItem `json:"items"`
+}
+
+// OrderSubGroup contains nested category views for an order group.
+type OrderSubGroup struct {
+	Categories []OrderCategory `json:"categories"`
 }
 
 // Store represents store information.
@@ -144,6 +188,7 @@ type MessagePart struct {
 // OrderItem represents an individual item in an order.
 type OrderItem struct {
 	ID          string       `json:"id"`
+	ReturnID    string       `json:"returnId"`
 	Quantity    float64      `json:"quantity"`
 	ProductInfo *ProductInfo `json:"productInfo"`
 	PriceInfo   *ItemPrice   `json:"priceInfo"`
