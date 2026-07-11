@@ -72,6 +72,27 @@ func TestGetOrderSuccess(t *testing.T) {
 	assert.Equal(t, 10.0, order.PriceDetails.GrandTotal.Value)
 }
 
+func TestOrder_GetRefundedItems_DeduplicatesCategoryAndSubgroupViews(t *testing.T) {
+	const response = `{
+  "data": {"order": {"id": "refund-1", "groups_2101": [{
+    "categories": [{"items": [{"id": "i1", "returnId": "return-1", "quantity": 1, "productInfo": {"name": "Refunded creamer", "usItemId": "sku-1"}, "priceInfo": {"linePrice": {"value": 5.26}}}]}],
+    "subGroups": [{"categories": [{"items": [{"id": "i1", "returnId": "return-1", "quantity": 1, "productInfo": {"name": "Refunded creamer", "usItemId": "sku-1"}, "priceInfo": {"linePrice": {"value": 5.26}}}]}]}]
+  }]}}
+}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(response))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	order, err := newMockClient(t, server.URL).GetOrder(context.Background(), "refund-1", false)
+	require.NoError(t, err)
+	items := order.GetRefundedItems()
+	require.Len(t, items, 1)
+	assert.Equal(t, "return-1", items[0].ReturnID)
+	assert.Equal(t, "Refunded creamer", items[0].ProductInfo.Name)
+}
+
 func TestGetOrderDeliveryCalculatesTotalWithTip(t *testing.T) {
 	const deliveryJSON = `{
 		"data": {
