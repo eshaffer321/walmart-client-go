@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-10
+
+### Added
+- `Order.GetRefundedItems()` exposes Walmart order items marked with `returnId`, deduplicated across the category and subgroup UI views.
+
 ## [2.0.2] - 2026-07-01
 
 ### Changed
@@ -241,7 +246,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.2...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/eshaffer321/walmart-client-go/compare/v1.0.9...v2.0.0
