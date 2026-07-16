@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,6 +152,96 @@ func TestGetOrderStatusErrors(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.wantErrMsg)
 		})
 	}
+}
+
+func TestGetOrderHTTP456IsBotChallenge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(456)
+		_, _ = w.Write([]byte("opaque-reference-id"))
+	}))
+	defer server.Close()
+
+	client := newMockClient(t, server.URL)
+	_, err := client.GetOrder(context.Background(), "x", true)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBotChallenge)
+	assert.Contains(t, err.Error(), "HTTP 456")
+}
+
+func TestGetOrderAutoDetectDoesNotRetryBotChallenge(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		w.WriteHeader(456)
+		_, _ = w.Write([]byte("opaque-reference-id"))
+	}))
+	defer server.Close()
+
+	client := newMockClient(t, server.URL)
+	_, err := client.GetOrderAutoDetect(context.Background(), "x")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBotChallenge)
+	assert.Equal(t, 1, requestCount)
+}
+
+func TestGetOrderWithGroupUsesCapturedBrowserProfile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Path, "/getOrder/0d0e73dcfbe4c7a4cb6c8ce929e5b9a8b3e731e4bac81969eed76dbdab28b0d2")
+
+		var variables map[string]any
+		require.NoError(t, json.Unmarshal([]byte(r.URL.Query().Get("variables")), &variables))
+		assert.Equal(t, "group-123", variables["clickThroughGroupId"])
+		assert.Equal(t, []any{"csc", "csat-northstar-v1"}, variables["enabledFeatures"])
+		assert.NotContains(t, variables, "includeTipDetails")
+		assert.NotContains(t, variables, "includeFeesDetails")
+
+		assert.Equal(t, testCapturedUserAgent, r.Header.Get("User-Agent"))
+		assert.Equal(t, `"Chromium";v="149"`, r.Header.Get("sec-ch-ua"))
+		assert.Equal(t, testCapturedPlatform, r.Header.Get(headerPlatformVersion))
+		assert.Equal(t, "tenant", r.Header.Get("tenant-id"))
+		assert.Equal(t, "ccm-id", r.Header.Get("x-o-ccm"))
+		assert.Equal(t, r.Header.Get("Referer"), r.Header.Get("wm_page_url"))
+		assert.Contains(t, r.Header.Get("Referer"), "/orders/order-123?groupId=group-123")
+		assert.Empty(t, r.Header.Get("dnt"))
+
+		assert.Equal(t, r.Header.Get("x-o-correlation-id"), r.Header.Get("wm_qos.correlation_id"))
+		assert.NotContains(t, r.Header.Get("x-o-correlation-id"), "walmart-go")
+		assert.Len(t, r.Header.Get("wm-client-traceid"), 32)
+		assert.True(t, strings.HasPrefix(r.Header.Get("traceparent"), "00-"))
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(inStoreOrderJSON))
+	}))
+	defer server.Close()
+
+	client := newMockClient(t, server.URL)
+	client.cookieStore.Replace(map[string]*cookies.Cookie{
+		cookieNameCID: {Value: testSource},
+	}, cookies.RequestProfile{
+		GetOrderHash: "0d0e73dcfbe4c7a4cb6c8ce929e5b9a8b3e731e4bac81969eed76dbdab28b0d2",
+		Headers: map[string]string{
+			headerUserAgent:       testCapturedUserAgent,
+			"sec-ch-ua":           `"Chromium";v="149"`,
+			headerPlatformVersion: testCapturedPlatform,
+			"tenant-id":           "tenant",
+			"x-o-ccm":             "ccm-id",
+		},
+	})
+
+	order, err := client.GetOrderWithGroup(context.Background(), "order-123", "group-123", true)
+	require.NoError(t, err)
+	require.NotNil(t, order)
+	assert.Equal(t, "200013509224581", order.ID)
+}
+
+func TestBuildOrderPageURL(t *testing.T) {
+	pageURL := buildOrderPageURL("order/with spaces", "group&value")
+	parsed, err := url.Parse(pageURL)
+	require.NoError(t, err)
+	assert.Equal(t, "/orders/order%2Fwith%20spaces", parsed.EscapedPath())
+	assert.Equal(t, "group&value", parsed.Query().Get("groupId"))
 }
 
 func TestGetOrderMalformedJSON(t *testing.T) {

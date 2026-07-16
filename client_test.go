@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -215,9 +216,43 @@ func TestBuildOrderEndpoint(t *testing.T) {
 		t.Error("Endpoint doesn't contain order ID")
 	}
 
-	// Check it has the GraphQL hash.
-	if !contains(endpoint, "d0622497daef19150438d07c506739d451cad6749cf45c3b4db95f2f5a0a65c4") {
-		t.Error("Endpoint doesn't contain correct GraphQL hash")
+	// Check it has the current GraphQL hash captured from Walmart's web app.
+	if !contains(endpoint, "0d0e73dcfbe4c7a4cb6c8ce929e5b9a8b3e731e4bac81969eed76dbdab28b0d2") {
+		t.Error("Endpoint doesn't contain current GraphQL hash")
+	}
+
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		t.Fatalf("Failed to parse endpoint: %v", err)
+	}
+	var variables map[string]any
+	if err := json.Unmarshal([]byte(parsed.Query().Get("variables")), &variables); err != nil {
+		t.Fatalf("Failed to parse variables: %v", err)
+	}
+
+	wantKeys := []string{
+		"clickThroughGroupId",
+		"eligibleFeatures",
+		"enableCancelFix",
+		"enableGroupBannerMessages",
+		"enableIsWcpOrder",
+		"enableSignOnDelivery",
+		"enableVolumePricing",
+		"enableWcpPhaseOrder",
+		"enabledFeatures",
+		graphqlOrderIDVariable,
+		"orderIsInStore",
+	}
+	for _, key := range wantKeys {
+		if _, ok := variables[key]; !ok {
+			t.Errorf("Endpoint variables missing %q", key)
+		}
+	}
+	if _, ok := variables["includeTipDetails"]; ok {
+		t.Error("Endpoint still sends obsolete includeTipDetails variable")
+	}
+	if _, ok := variables["includeFeesDetails"]; ok {
+		t.Error("Endpoint still sends obsolete includeFeesDetails variable")
 	}
 }
 
@@ -260,8 +295,8 @@ func TestMockOrderRequest(t *testing.T) {
 	// so we'll just test that the request would be made correctly.
 
 	// Add required cookies.
-	client.cookieStore.Set("CID", &cookies.Cookie{Value: "test"})
-	client.cookieStore.Set("SPID", &cookies.Cookie{Value: "test"})
+	client.cookieStore.Set(cookieNameCID, &cookies.Cookie{Value: testSource})
+	client.cookieStore.Set(cookieNameSPID, &cookies.Cookie{Value: testSource})
 
 	// Since we can't override the endpoint builder, just verify the endpoint is built correctly.
 	endpoint := client.buildOrderEndpoint("TEST123", true)
@@ -306,7 +341,7 @@ func TestInitializeFromCurl(t *testing.T) {
 	}
 
 	// Check essential cookies were loaded.
-	cid := client.cookieStore.Get("CID")
+	cid := client.cookieStore.Get(cookieNameCID)
 	if cid == nil || cid.Value != "test_cid" {
 		t.Error("CID cookie not loaded correctly")
 	}
@@ -314,12 +349,52 @@ func TestInitializeFromCurl(t *testing.T) {
 		t.Error("CID should be marked as essential")
 	}
 
-	spid := client.cookieStore.Get("SPID")
+	spid := client.cookieStore.Get(cookieNameSPID)
 	if spid == nil || spid.Value != "test_spid" {
 		t.Error("SPID cookie not loaded correctly")
 	}
 	if !spid.Essential {
 		t.Error("SPID should be marked as essential")
+	}
+}
+
+func TestInitializeFromCurlReplacesStaleCookies(t *testing.T) {
+	tempDir := t.TempDir()
+	client, err := NewWalmartClient(ClientConfig{CookieDir: tempDir})
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	client.cookieStore.Set("stale-waf-cookie", &cookies.Cookie{Value: "old"})
+
+	curlContent := `curl 'https://www.walmart.com/orchestra/orders/graphql/getOrder/0d0e73dcfbe4c7a4cb6c8ce929e5b9a8b3e731e4bac81969eed76dbdab28b0d2?variables=%7B%7D' \
+  -H 'user-agent: Mozilla/5.0 Chrome/149.0.0.0' \
+  -H 'x-o-platform-version: usweb-1.284.0-test' \
+  -b 'CID=test_cid; SPID=test_spid; auth=test_auth'`
+	curlFile := filepath.Join(tempDir, "fresh.curl")
+	if err := os.WriteFile(curlFile, []byte(curlContent), 0600); err != nil {
+		t.Fatalf("Failed to write curl fixture: %v", err)
+	}
+
+	if err := client.InitializeFromCurl(curlFile); err != nil {
+		t.Fatalf("Failed to initialize: %v", err)
+	}
+
+	if got := client.cookieStore.Get("stale-waf-cookie"); got != nil {
+		t.Error("InitializeFromCurl retained a stale cookie from the previous browser capture")
+	}
+	if got := client.cookieStore.Count(); got != 3 {
+		t.Errorf("Expected exactly 3 cookies from fresh capture, got %d", got)
+	}
+
+	profile := client.cookieStore.GetRequestProfile()
+	if profile.GetOrderHash != "0d0e73dcfbe4c7a4cb6c8ce929e5b9a8b3e731e4bac81969eed76dbdab28b0d2" {
+		t.Errorf("Unexpected captured getOrder hash %q", profile.GetOrderHash)
+	}
+	if got := profile.Headers[headerUserAgent]; got != testCapturedUserAgent {
+		t.Errorf("Unexpected captured user agent %q", got)
+	}
+	if got := profile.Headers[headerPlatformVersion]; got != testCapturedPlatform {
+		t.Errorf("Unexpected captured Walmart platform version %q", got)
 	}
 }
 

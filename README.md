@@ -36,7 +36,7 @@ cd walmart-client-go
 go build -o walmart-cli ./cmd/walmart
 
 # Or install directly
-go install github.com/eshaffer321/walmart-client/cmd/walmart@latest
+go install github.com/eshaffer321/walmart-client-go/v2/cmd/walmart@latest
 ```
 
 ## Library Usage (Go SDK)
@@ -46,11 +46,12 @@ go install github.com/eshaffer321/walmart-client/cmd/walmart@latest
 package main
 
 import (
+	"context"
     "encoding/json"
     "fmt"
     "time"
     
-    walmart "github.com/eshaffer321/walmart-client"
+    walmart "github.com/eshaffer321/walmart-client-go/v2"
 )
 
 func main() {
@@ -71,8 +72,10 @@ func main() {
         panic(err)
     }
     
+    ctx := context.Background()
+
     // Get recent orders as Go structs
-    orders, err := client.GetRecentOrders(10)
+    orders, err := client.GetRecentOrders(ctx, 10)
     if err != nil {
         panic(err)
     }
@@ -84,7 +87,9 @@ func main() {
     
     // Get full order details
     if len(orders) > 0 {
-        order, err := client.GetOrder(orders[0].OrderID, true)
+        order, err := client.GetOrderWithGroup(
+            ctx, orders[0].OrderID, orders[0].GroupID, true,
+        )
         if err != nil {
             panic(err)
         }
@@ -160,16 +165,17 @@ All logs automatically include `client=walmart` attribute for filtering in multi
 ### Available Methods
 ```go
 // Order operations
-client.GetOrder(orderID string, isInStore bool) (*Order, error)
-client.GetOrderAutoDetect(orderID string) (*Order, error)
-client.GetDeliveryOrderWithTip(orderID string) (*Order, error) // Ensures tip info is included
-client.GetOrderLedger(orderID string) (*OrderLedger, error)    // NEW: Get payment ledger for bank reconciliation
+client.GetOrder(ctx context.Context, orderID string, isInStore bool) (*Order, error)
+client.GetOrderWithGroup(ctx context.Context, orderID, groupID string, isInStore bool) (*Order, error)
+client.GetOrderAutoDetect(ctx context.Context, orderID string) (*Order, error)
+client.GetDeliveryOrderWithTip(ctx context.Context, orderID string) (*Order, error)
+client.GetOrderLedger(ctx context.Context, orderID string) (*OrderLedger, error)
 
 // Purchase history
-client.GetRecentOrders(limit int) ([]OrderSummary, error)
-client.GetAllOrders(maxPages int) ([]OrderSummary, error)
-client.SearchOrders(searchTerm string, limit int) ([]OrderSummary, error)
-client.GetOrdersByType(orderType string, limit int) ([]OrderSummary, error)
+client.GetRecentOrders(ctx context.Context, limit int) ([]OrderSummary, error)
+client.GetAllOrders(ctx context.Context, maxPages int) ([]OrderSummary, error)
+client.SearchOrders(ctx context.Context, searchTerm string, limit int) ([]OrderSummary, error)
+client.GetOrdersByType(ctx context.Context, orderType string, limit int) ([]OrderSummary, error)
 
 // Cookie management
 client.InitializeFromCurl(curlFile string) error
@@ -177,8 +183,8 @@ client.Status() // Print status
 client.RefreshFromBrowser() error
 
 // Helper methods for JSON output
-client.GetOrdersAsJSON(limit int) (string, error)
-client.GetOrderAsJSON(orderID string, isInStore bool) (string, error)
+client.GetOrdersAsJSON(ctx context.Context, limit int) (string, error)
+client.GetOrderAsJSON(ctx context.Context, orderID string, isInStore bool) (string, error)
 ```
 
 ### Data Structures
@@ -247,7 +253,7 @@ The order ledger API provides detailed payment information showing actual credit
 
 ```go
 // Get payment ledger for an order
-ledger, err := client.GetOrderLedger("200013509224581")
+ledger, err := client.GetOrderLedger(ctx, "200013509224581")
 if err != nil {
     log.Fatal(err)
 }
@@ -299,7 +305,7 @@ The order ledger provides these actual charge amounts, making it possible to acc
 ./walmart-cli -init curl.txt
 ```
 
-This saves your cookies to `~/.walmart-api/cookies.json` for future use.
+This saves the current browser cookie snapshot, `getOrder` query hash, and safe request profile to `~/.walmart-api/cookies.json`. The cURL file contains session credentials; keep it private and delete it when initialization succeeds.
 
 ### CLI Commands
 
@@ -360,7 +366,7 @@ This saves your cookies to `~/.walmart-api/cookies.json` for future use.
 
 # Output:
 # === Cookie Store Status ===
-# Total cookies: 61
+# Total cookies: 62
 # Cookie file: /Users/you/.walmart-api/cookies.json
 # Essential cookies: 6
 # 
@@ -380,10 +386,10 @@ This saves your cookies to `~/.walmart-api/cookies.json` for future use.
 ## How It Works
 
 ### Authentication
-- Uses 61 cookies from your browser session
-- **CID** and **SPID** are the essential auth cookies
-- However, ALL 61 cookies are required to avoid bot detection (429/418 errors)
-- 19 cookies automatically update with each request to prevent staleness
+- Replays the complete cookie snapshot from your current browser session
+- Captures the live `getOrder` hash and browser request profile instead of hard-coding a stale fingerprint
+- Replaces old cookies on refresh so expired WAF state cannot leak into the new session
+- Automatically incorporates cookie updates returned by Walmart
 
 ### API Endpoints
 
@@ -441,7 +447,14 @@ Cookies are stored in `~/.walmart-api/cookies.json` with metadata:
     },
     ...
   },
-  "last_update": "2025-09-07T08:40:57Z"
+  "last_update": "2025-09-07T08:40:57Z",
+  "request_profile": {
+    "get_order_hash": "...",
+    "headers": {
+      "user-agent": "...",
+      "x-o-platform-version": "..."
+    }
+  }
 }
 ```
 
@@ -450,7 +463,7 @@ Cookies are stored in `~/.walmart-api/cookies.json` with metadata:
 ### Rate Limiting
 - Built-in 2-second delay between requests
 - Automatic cookie updates to prevent staleness
-- Proper error handling for rate limits (429) and bot detection (418)
+- Proper error handling for rate limits (429) and bot detection (418/456)
 
 ### GraphQL Persisted Queries
 Walmart uses persisted queries where the query is stored server-side and referenced by hash:
@@ -468,7 +481,7 @@ Walmart uses persisted queries where the query is stored server-side and referen
 - This is for personal use only - be respectful of Walmart's servers
 - Cookies expire after some time - refresh from browser when needed
 - Rate limiting is enforced to avoid detection
-- All 61 cookies are required despite only 2 containing auth data
+- Refresh from a newly copied `getOrder` cURL request when `ErrBotChallenge` is returned
 
 ## License
 
