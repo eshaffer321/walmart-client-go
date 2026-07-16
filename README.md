@@ -18,7 +18,7 @@ Available as both a **Go library** for programmatic access and a **CLI tool** fo
 - 💳 **NEW:** Order ledger API for payment tracking - match orders to bank transactions
 - 🔍 Search orders for specific items
 - 📄 Pagination support for large order histories
-- 🍪 Automatic cookie management with rotation to prevent staleness
+- 🍪 Path-aware response cookie handling without corrupting the captured browser session
 - 💾 Persistent cookie storage in `~/.walmart-api/cookies.json`
 
 ## Installation
@@ -389,7 +389,7 @@ This saves the current browser cookie snapshot, `getOrder` query hash, and safe 
 - Replays the complete cookie snapshot from your current browser session
 - Captures the live `getOrder` hash and browser request profile instead of hard-coding a stale fingerprint
 - Replaces old cookies on refresh so expired WAF state cannot leak into the new session
-- Automatically incorporates cookie updates returned by Walmart
+- Keeps response cookie updates in a path-aware in-memory jar so one endpoint cannot poison another
 
 ### API Endpoints
 
@@ -462,7 +462,7 @@ Cookies are stored in `~/.walmart-api/cookies.json` with metadata:
 
 ### Rate Limiting
 - Built-in 2-second delay between requests
-- Automatic cookie updates to prevent staleness
+- Path-aware, in-memory response cookie updates preserve the persistent browser snapshot
 - Proper error handling for rate limits (429) and bot detection (418/456)
 
 ### GraphQL Persisted Queries

@@ -48,7 +48,7 @@ Walmart requires a coherent cookie snapshot and request profile from the same br
 - Persists to `~/.walmart-api/cookies.json`
 - Replaces the previous snapshot when importing a fresh `getOrder` cURL request
 - Persists the active GraphQL hash and allowlisted browser headers
-- Auto-updates cookies returned by responses
+- Keeps cookies returned by responses in a path-aware in-memory jar; they never flatten into or overwrite the persistent browser snapshot
 - Tracks metadata (last_update, source, essential flag)
 
 #### 2. Rate Limiting

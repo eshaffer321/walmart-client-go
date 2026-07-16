@@ -176,6 +176,7 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 
 	// Create mock response with Set-Cookie headers.
 	resp := &http.Response{
+		Request: &http.Request{URL: mustParseURL(t, "https://www.walmart.com/orchestra/orders/graphql/getOrder/hash")},
 		Header: http.Header{
 			"Set-Cookie": []string{
 				"existing=new_value; Path=/",
@@ -186,20 +187,34 @@ func TestUpdateCookiesFromResponse(t *testing.T) {
 
 	client.updateCookiesFromResponse(resp)
 
-	// Check existing cookie was updated.
-	existing := client.cookieStore.Get("existing")
-	if existing == nil || existing.Value != "new_value" {
-		t.Error("Failed to update existing cookie")
+	request, err := http.NewRequest(http.MethodGet, "https://www.walmart.com/orchestra/orders/graphql/getOrder/next", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
 	}
-	if !existing.Essential {
-		t.Error("Lost essential flag on update")
+	client.setCookies(request)
+	values := requestCookieValues(request)
+	if values["existing"] != "new_value" {
+		t.Error("Failed to apply response cookie to a matching request path")
 	}
-
-	// Check new cookie was added.
-	newCookie := client.cookieStore.Get("new_cookie")
-	if newCookie == nil || newCookie.Value != "value" {
+	if values["new_cookie"] != "value" {
 		t.Error("Failed to add new cookie from response")
 	}
+
+	// The persistent browser snapshot remains unchanged; response cookies are
+	// path-aware and in-memory only.
+	existing := client.cookieStore.Get("existing")
+	if existing == nil || existing.Value != "old_value" || !existing.Essential {
+		t.Error("Response cookie mutated persistent browser snapshot")
+	}
+}
+
+func mustParseURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("Failed to parse URL: %v", err)
+	}
+	return parsed
 }
 
 func TestBuildOrderEndpoint(t *testing.T) {

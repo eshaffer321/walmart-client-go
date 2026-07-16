@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-07-15
+
+### Fixed
+- Response cookies now retain their domain and path scope in an in-memory cookie jar instead of overwriting the persistent browser snapshot. This prevents purchase-history cookies from poisoning subsequent order-detail requests with HTTP 456.
+
 ## [2.2.0] - 2026-07-15
 
 ### Added
@@ -262,7 +267,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/eshaffer321/walmart-client-go/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/eshaffer321/walmart-client-go/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.1...v2.0.2
