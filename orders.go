@@ -12,10 +12,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
-
-	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
 
 const contentTypeJSON = "application/json"
@@ -422,7 +421,23 @@ func (c *WalmartClient) setCookies(req *http.Request) {
 
 	allCookies := c.cookieStore.GetAll()
 	cookiePairs := make([]string, 0, len(allCookies))
-	for name, cookie := range allCookies {
+	responseCookieNames := make(map[string]bool)
+	if c.responseCookieJar != nil {
+		for _, cookie := range c.responseCookieJar.Cookies(req.URL) {
+			cookiePairs = append(cookiePairs, fmt.Sprintf("%s=%s", cookie.Name, cookie.Value))
+			responseCookieNames[cookie.Name] = true
+		}
+	}
+
+	baseCookieNames := make([]string, 0, len(allCookies))
+	for name := range allCookies {
+		if !responseCookieNames[name] {
+			baseCookieNames = append(baseCookieNames, name)
+		}
+	}
+	sort.Strings(baseCookieNames)
+	for _, name := range baseCookieNames {
+		cookie := allCookies[name]
 		cookiePairs = append(cookiePairs, fmt.Sprintf("%s=%s", name, cookie.Value))
 	}
 
@@ -433,41 +448,21 @@ func (c *WalmartClient) setCookies(req *http.Request) {
 
 // updateCookiesFromResponse updates cookie store with Set-Cookie headers.
 func (c *WalmartClient) updateCookiesFromResponse(resp *http.Response) {
-	setCookies := resp.Header["Set-Cookie"]
-	if len(setCookies) == 0 {
+	responseCookies := resp.Cookies()
+	if len(responseCookies) == 0 {
+		return
+	}
+	if resp.Request == nil || resp.Request.URL == nil {
+		c.logger.Debug("cannot retain response cookies without request URL")
 		return
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	updatedCount := 0
-	for _, cookieHeader := range setCookies {
-		parts := strings.Split(cookieHeader, ";")
-		if len(parts) > 0 {
-			nameValue := strings.SplitN(parts[0], "=", 2)
-			if len(nameValue) == 2 {
-				name := strings.TrimSpace(nameValue[0])
-				value := strings.TrimSpace(nameValue[1])
-
-				// Check if this is an update.
-				existing := c.cookieStore.Get(name)
-				if existing != nil && existing.Value != value {
-					updatedCount++
-				}
-
-				c.cookieStore.Set(name, &cookies.Cookie{
-					Value:      value,
-					LastUpdate: time.Now(),
-					Source:     "response",
-					Essential:  existing != nil && existing.Essential,
-				})
-			}
-		}
+	if c.responseCookieJar == nil {
+		return
 	}
-
-	if updatedCount > 0 {
-		c.logger.Debug("cookies updated from response",
-			slog.Int("updated_count", updatedCount))
-	}
+	c.responseCookieJar.SetCookies(resp.Request.URL, responseCookies)
+	c.logger.Debug("response cookies retained in path-aware jar",
+		slog.Int("cookie_count", len(responseCookies)))
 }

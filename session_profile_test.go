@@ -1,6 +1,7 @@
 package walmart
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,4 +63,43 @@ func TestCookieStoreReplacePersistsProfileAndResecuresFile(t *testing.T) {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+func TestResponseCookiesRespectRequestPath(t *testing.T) {
+	client, err := NewWalmartClient(ClientConfig{CookieFile: filepath.Join(t.TempDir(), "cookies.json")})
+	require.NoError(t, err)
+	client.cookieStore.Set(cookieNameAuth, &cookies.Cookie{Value: "captured-auth"})
+	client.cookieStore.Set("shared", &cookies.Cookie{Value: "captured-shared"})
+
+	historyRequest, err := http.NewRequest(http.MethodGet, "https://www.walmart.com/orchestra/cph/graphql/PurchaseHistoryV2/hash", nil)
+	require.NoError(t, err)
+	response := &http.Response{
+		Request: historyRequest,
+		Header: http.Header{"Set-Cookie": []string{
+			"auth=history-only; Path=/orchestra/cph; Secure",
+			"shared=updated-root; Path=/; Secure",
+		}},
+	}
+	client.updateCookiesFromResponse(response)
+
+	orderRequest, err := http.NewRequest(http.MethodGet, "https://www.walmart.com/orchestra/orders/graphql/getOrder/hash", nil)
+	require.NoError(t, err)
+	client.setCookies(orderRequest)
+	orderCookies := requestCookieValues(orderRequest)
+	assert.Equal(t, "captured-auth", orderCookies[cookieNameAuth], "history-path auth cookie must not poison order requests")
+	assert.Equal(t, "updated-root", orderCookies["shared"])
+
+	nextHistoryRequest, err := http.NewRequest(http.MethodGet, "https://www.walmart.com/orchestra/cph/graphql/PurchaseHistoryV2/hash", nil)
+	require.NoError(t, err)
+	client.setCookies(nextHistoryRequest)
+	historyCookies := requestCookieValues(nextHistoryRequest)
+	assert.Equal(t, "history-only", historyCookies[cookieNameAuth])
+}
+
+func requestCookieValues(req *http.Request) map[string]string {
+	values := make(map[string]string)
+	for _, cookie := range req.Cookies() {
+		values[cookie.Name] = cookie.Value
+	}
+	return values
 }

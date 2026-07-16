@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +23,7 @@ var getOrderHashPattern = regexp.MustCompile(`/orchestra/orders/graphql/getOrder
 type WalmartClient struct {
 	httpClient        *http.Client
 	cookieStore       *cookies.Store
+	responseCookieJar *cookiejar.Jar
 	rateLimiter       *time.Ticker
 	ledgerRateLimiter *time.Ticker
 	lastRequest       time.Time
@@ -84,6 +86,11 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 		logger.Debug("no existing cookies found", slog.String("file_path", config.CookieFile))
 	}
 
+	responseCookieJar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize response cookie jar: %w", err)
+	}
+
 	client := &WalmartClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -93,6 +100,7 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 			},
 		},
 		cookieStore:       store,
+		responseCookieJar: responseCookieJar,
 		rateLimiter:       time.NewTicker(config.RateLimit),
 		ledgerRateLimiter: time.NewTicker(ledgerRate),
 		maxRetries:        maxRetries,
@@ -158,7 +166,14 @@ func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 
 	// A browser refresh is a coherent session snapshot. Replace instead of
 	// merging so expired WAF cookies from an older capture cannot survive.
+	responseCookieJar, err := cookiejar.New(nil)
+	if err != nil {
+		return fmt.Errorf("failed to reset response cookie jar: %w", err)
+	}
+	c.mu.Lock()
 	c.cookieStore.Replace(replacement, profile)
+	c.responseCookieJar = responseCookieJar
+	c.mu.Unlock()
 
 	// Auto-save.
 	if err := c.cookieStore.Save(); err != nil {
