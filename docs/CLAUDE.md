@@ -44,9 +44,11 @@ order := walmart.Order{}
 ### Key Design Patterns
 
 #### 1. Cookie Management
-Walmart requires ALL 61 cookies from browser session to avoid bot detection. The cookie store:
+Walmart requires a coherent cookie snapshot and request profile from the same browser session. The cookie store:
 - Persists to `~/.walmart-api/cookies.json`
-- Auto-updates 19 cookies from each response
+- Replaces the previous snapshot when importing a fresh `getOrder` cURL request
+- Persists the active GraphQL hash and allowlisted browser headers
+- Auto-updates cookies returned by responses
 - Tracks metadata (last_update, source, essential flag)
 
 #### 2. Rate Limiting
@@ -320,9 +322,9 @@ If Walmart changes their API:
    - Open DevTools → Network
    - Copy request as cURL
 
-2. **Update GraphQL hashes if needed:**
-   - Hashes are in `orders.go`, `purchases.go`, `ledger.go`
-   - Look for `&extensions=` in endpoint URLs
+2. **Refresh the stored request profile:**
+   - Run `walmart-cli -init curl.txt` so the current `getOrder` hash and browser headers are captured
+   - Static fallback hashes are in `orders.go`, `purchases.go`, and `ledger.go`
 
 3. **Update models if response structure changed:**
    - Add/modify types in `models.go`

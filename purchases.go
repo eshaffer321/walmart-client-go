@@ -199,6 +199,9 @@ func (c *WalmartClient) checkPurchaseResponseError(resp *http.Response, body []b
 	case 403, 418:
 		c.logger.Warn("access denied", slog.Int("status_code", resp.StatusCode))
 		return fmt.Errorf("access denied - cookies expired, please update from browser")
+	case 456:
+		c.logger.Warn("bot challenge", slog.Int("status_code", resp.StatusCode))
+		return botChallengeError(body)
 	default:
 		c.logger.Warn("non-200 response", slog.Int("status_code", resp.StatusCode))
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
@@ -320,30 +323,5 @@ func (c *WalmartClient) buildPurchaseHistoryEndpoint(req PurchaseHistoryRequest)
 
 // Set headers specific to purchase history.
 func (c *WalmartClient) setPurchaseHistoryHeaders(req *http.Request) {
-	headers := map[string]string{
-		"accept":                  contentTypeJSON,
-		"accept-language":         "en-US",
-		"content-type":            contentTypeJSON,
-		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-		"x-apollo-operation-name": "PurchaseHistoryV2",
-		"x-o-gql-query":           "query PurchaseHistoryV2",
-		"x-o-platform":            "rweb",
-		"x-o-bu":                  "WALMART-US",
-		"x-o-mart":                "B2C",
-		"x-o-segment":             "oaoh",
-		"x-o-correlation-id":      fmt.Sprintf("walmart-go-%d", time.Now().Unix()),
-		"wm_qos.correlation_id":   fmt.Sprintf("walmart-go-%d", time.Now().Unix()),
-		"wm_mp":                   "true",
-		"sec-fetch-site":          "same-origin",
-		"sec-fetch-mode":          "cors",
-		"sec-fetch-dest":          "empty",
-		"dnt":                     "1",
-		"x-o-platform-version":    "usweb-1.221.0",
-		"x-enable-server-timing":  "1",
-		"x-latency-trace":         "1",
-	}
-
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	c.setHeaders(req, "PurchaseHistoryV2", "https://www.walmart.com/orders")
 }

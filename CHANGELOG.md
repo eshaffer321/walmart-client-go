@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-15
+
+### Added
+- `GetOrderWithGroup` sends the purchase-history group ID with order-detail requests.
+- `ErrBotChallenge` lets callers detect Walmart's HTTP 456 bot-protection response with `errors.Is`.
+
+### Changed
+- Browser cURL imports now capture the active `getOrder` persisted-query hash and a safe request-header profile alongside cookies.
+- Refreshing from cURL replaces the previous browser snapshot instead of retaining stale WAF cookies.
+- Order, purchase-history, and ledger requests now use current browser headers plus per-request correlation and trace IDs.
+
+### Fixed
+- Updated the `getOrder` GraphQL variables and persisted-query hash to match Walmart's current web client.
+- `GetOrderAutoDetect` no longer repeats a request after an HTTP 456 bot challenge.
+- Cookie files are saved atomically with owner-only permissions, including files created by older releases.
+
 ## [2.1.0] - 2026-07-10
 
 ### Added
@@ -246,7 +262,8 @@ git push origin v1.0.3
 gh release create v1.0.3 --generate-notes
 ```
 
-[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/eshaffer321/walmart-client-go/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/eshaffer321/walmart-client-go/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/eshaffer321/walmart-client-go/compare/v2.0.0...v2.0.1

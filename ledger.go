@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -91,7 +92,7 @@ func (c *WalmartClient) GetOrderLedger(ctx context.Context, orderID string) (*Or
 
 	// Build variables JSON and properly URL-encode it.
 	variables := map[string]string{
-		"orderId": orderID,
+		graphqlOrderIDVariable: orderID,
 	}
 	variablesJSON, err := json.Marshal(variables)
 	if err != nil {
@@ -173,7 +174,7 @@ func (c *WalmartClient) fetchLedgerAttempt(ctx context.Context, endpoint, orderI
 	}
 
 	// Set headers.
-	c.setHeaders(req, "getOrderLedger")
+	c.setHeaders(req, "getOrderLedger", buildOrderPageURL(orderID, "0"))
 
 	// Set cookies from store.
 	c.setCookies(req)
@@ -211,6 +212,16 @@ func (c *WalmartClient) fetchLedgerAttempt(ctx context.Context, endpoint, orderI
 
 	// Handle other non-OK statuses (don't retry).
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == 456 {
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, 129))
+			if readErr != nil {
+				c.logger.Debug("failed to read bot challenge reference", slog.String("error", readErr.Error()))
+			}
+			c.logger.Warn("bot challenge",
+				slog.String("order_id", orderID),
+				slog.Int("status_code", resp.StatusCode))
+			return nil, false, botChallengeError(body)
+		}
 		if resp.StatusCode == 403 || resp.StatusCode == 418 {
 			c.logger.Warn("access denied",
 				slog.String("order_id", orderID),

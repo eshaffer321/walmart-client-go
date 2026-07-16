@@ -8,12 +8,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/eshaffer321/walmart-client-go/v2/internal/cookies"
 )
+
+var getOrderHashPattern = regexp.MustCompile(`/orchestra/orders/graphql/getOrder/([a-f0-9]{64})([/?]|$)`)
 
 // WalmartClient provides access to Walmart's order history and purchase data API.
 type WalmartClient struct {
@@ -103,23 +106,31 @@ func NewWalmartClient(config ClientConfig) (*WalmartClient, error) {
 func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 	// The curl file path is supplied by the caller of this library, not by
 	// untrusted input, so reading it directly is intended behavior.
-	data, err := os.ReadFile(curlFile) //nolint:gosec // G304: caller-controlled path
+	// #nosec G304 -- caller-controlled configuration is the public API contract.
+	data, err := os.ReadFile(curlFile)
 	if err != nil {
 		return fmt.Errorf("failed to read curl file: %w", err)
 	}
 
-	parsedCookies := cookies.ExtractFromCurl(string(data))
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	capture := cookies.ParseCurl(string(data))
+	if len(capture.Cookies) == 0 {
+		return fmt.Errorf("curl capture contains no cookies")
+	}
+	for _, name := range []string{cookieNameCID, cookieNameSPID, cookieNameAuth} {
+		if capture.Cookies[name] == "" {
+			return fmt.Errorf("curl capture is missing required %s cookie", name)
+		}
+	}
 
 	// Mark essential cookies.
 	essentialCookies := cookies.Essential()
+	replacement := make(map[string]*cookies.Cookie, len(capture.Cookies))
+	now := time.Now()
 
-	for name, value := range parsedCookies {
+	for name, value := range capture.Cookies {
 		cookie := &cookies.Cookie{
 			Value:      value,
-			LastUpdate: time.Now(),
+			LastUpdate: now,
 			Source:     "curl",
 			Essential:  false,
 		}
@@ -132,8 +143,22 @@ func (c *WalmartClient) InitializeFromCurl(curlFile string) error {
 			}
 		}
 
-		c.cookieStore.Set(name, cookie)
+		replacement[name] = cookie
 	}
+
+	profile := cookies.RequestProfile{Headers: make(map[string]string)}
+	if match := getOrderHashPattern.FindStringSubmatch(capture.URL); len(match) >= 2 {
+		profile.GetOrderHash = match[1]
+	}
+	for name, value := range capture.Headers {
+		if _, ok := requestProfileHeaderAllowlist[name]; ok {
+			profile.Headers[name] = value
+		}
+	}
+
+	// A browser refresh is a coherent session snapshot. Replace instead of
+	// merging so expired WAF cookies from an older capture cannot survive.
+	c.cookieStore.Replace(replacement, profile)
 
 	// Auto-save.
 	if err := c.cookieStore.Save(); err != nil {
@@ -188,7 +213,7 @@ func (c *WalmartClient) Status() {
 
 	// Show essential cookies status.
 	fmt.Println("\nEssential cookies:")
-	essentials := []string{"CID", "SPID", "auth", "customer"}
+	essentials := []string{cookieNameCID, cookieNameSPID, cookieNameAuth, "customer"}
 	missingEssential := []string{}
 	for _, name := range essentials {
 		if cookie := c.cookieStore.Get(name); cookie != nil {

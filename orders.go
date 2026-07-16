@@ -2,7 +2,11 @@ package walmart
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,9 +20,52 @@ import (
 
 const contentTypeJSON = "application/json"
 
+const (
+	cookieNameAuth         = "auth"
+	cookieNameCID          = "CID"
+	cookieNameSPID         = "SPID"
+	defaultGetOrderHash    = "0d0e73dcfbe4c7a4cb6c8ce929e5b9a8b3e731e4bac81969eed76dbdab28b0d2"
+	defaultPlatform        = "usweb-1.284.0-1871dae08edcd429b12e47a369da9967df5b330d-7141058r"
+	defaultUserAgent       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+	graphqlOrderIDVariable = "orderId"
+	headerPlatformVersion  = "x-o-platform-version"
+	headerUserAgent        = "user-agent"
+)
+
+// ErrBotChallenge identifies Walmart's non-standard HTTP 456 response. It
+// means the request was rejected by bot protection and the browser session
+// profile should be refreshed before retrying.
+var ErrBotChallenge = errors.New("walmart rejected request as automated")
+
+var requestProfileHeaderAllowlist = map[string]struct{}{
+	"cache-control":         {},
+	"device-memory":         {},
+	"device_profile_ref_id": {},
+	"downlink":              {},
+	"dpr":                   {},
+	"pragma":                {},
+	"priority":              {},
+	"sec-ch-device-memory":  {},
+	"sec-ch-dpr":            {},
+	"sec-ch-ua":             {},
+	"sec-ch-ua-mobile":      {},
+	"sec-ch-ua-platform":    {},
+	"tenant-id":             {},
+	headerUserAgent:         {},
+	"x-o-ccm":               {},
+	headerPlatformVersion:   {},
+}
+
 // GetOrder fetches an order with automatic cookie updates.
 // The context can be used to cancel the request or set a deadline.
 func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore bool) (*Order, error) {
+	return c.GetOrderWithGroup(ctx, orderID, "0", isInStore)
+}
+
+// GetOrderWithGroup fetches an order using the group identifier returned by
+// purchase history. Walmart's web client includes this identifier in both the
+// GraphQL variables and order-page request context.
+func (c *WalmartClient) GetOrderWithGroup(ctx context.Context, orderID, groupID string, isInStore bool) (*Order, error) {
 	// Rate limiting with context support.
 	if !c.lastRequest.IsZero() {
 		c.logger.Debug("waiting for rate limiter")
@@ -31,7 +78,7 @@ func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore 
 	}
 	c.lastRequest = time.Now()
 
-	endpoint := c.buildOrderEndpoint(orderID, isInStore)
+	endpoint := c.buildOrderEndpointWithGroup(orderID, groupID, isInStore)
 
 	c.logger.Debug("fetching order",
 		slog.String("order_id", orderID),
@@ -47,7 +94,7 @@ func (c *WalmartClient) GetOrder(ctx context.Context, orderID string, isInStore 
 	}
 
 	// Set headers.
-	c.setHeaders(req, "getOrder")
+	c.setHeaders(req, "getOrder", buildOrderPageURL(orderID, groupID))
 
 	// Set cookies from store.
 	c.setCookies(req)
@@ -160,6 +207,11 @@ func (c *WalmartClient) checkOrderResponseError(resp *http.Response, body []byte
 			slog.String("order_id", orderID),
 			slog.Int("status_code", resp.StatusCode))
 		return fmt.Errorf("access denied - cookies expired, please update from browser")
+	case 456:
+		c.logger.Warn("bot challenge",
+			slog.String("order_id", orderID),
+			slog.Int("status_code", resp.StatusCode))
+		return botChallengeError(body)
 	default:
 		c.logger.Warn("non-200 response",
 			slog.String("order_id", orderID),
@@ -175,6 +227,9 @@ func (c *WalmartClient) GetOrderAutoDetect(ctx context.Context, orderID string) 
 	order, err := c.GetOrder(ctx, orderID, true)
 	if err == nil {
 		return order, nil
+	}
+	if errors.Is(err, ErrBotChallenge) {
+		return nil, err
 	}
 
 	// Check for cancellation before retrying.
@@ -242,15 +297,22 @@ func (c *WalmartClient) GetOrderAsJSON(ctx context.Context, orderID string, isIn
 
 // buildOrderEndpoint constructs the GraphQL endpoint URL for fetching order details.
 func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) string {
+	return c.buildOrderEndpointWithGroup(orderID, "0", isInStore)
+}
+
+func (c *WalmartClient) buildOrderEndpointWithGroup(orderID, groupID string, isInStore bool) string {
 	variables := map[string]interface{}{
-		"orderId":              orderID,
-		"orderIsInStore":       isInStore,
-		"clickThroughGroupId":  "0",
-		"enableIsWcpOrder":     false,
-		"enabledFeatures":      []string{"csat-northstar-v1", "tips", "delivery-fees"},
-		"enableSignOnDelivery": true,
-		"includeTipDetails":    true,
-		"includeFeesDetails":   true,
+		"clickThroughGroupId":       groupID,
+		"eligibleFeatures":          map[string]bool{"isEbtEligible": false, "isLotOnOdpEnable": false},
+		"enableCancelFix":           false,
+		"enableGroupBannerMessages": false,
+		"enableIsWcpOrder":          false,
+		"enableSignOnDelivery":      true,
+		"enableVolumePricing":       false,
+		"enableWcpPhaseOrder":       false,
+		"enabledFeatures":           []string{"csc", "csat-northstar-v1"},
+		graphqlOrderIDVariable:      orderID,
+		"orderIsInStore":            isInStore,
 	}
 
 	variablesJSON, err := json.Marshal(variables)
@@ -260,38 +322,97 @@ func (c *WalmartClient) buildOrderEndpoint(orderID string, isInStore bool) strin
 	params := url.Values{}
 	params.Set("variables", string(variablesJSON))
 
-	return fmt.Sprintf("https://www.walmart.com/orchestra/orders/graphql/getOrder/d0622497daef19150438d07c506739d451cad6749cf45c3b4db95f2f5a0a65c4?%s",
-		params.Encode())
+	hash := defaultGetOrderHash
+	if profileHash := c.cookieStore.GetRequestProfile().GetOrderHash; profileHash != "" {
+		hash = profileHash
+	}
+
+	return fmt.Sprintf("https://www.walmart.com/orchestra/orders/graphql/getOrder/%s?%s", hash, params.Encode())
 }
 
 // setHeaders sets standard HTTP headers required by Walmart's API.
-func (c *WalmartClient) setHeaders(req *http.Request, operationName string) {
+func (c *WalmartClient) setHeaders(req *http.Request, operationName, pageURL string) {
 	headers := map[string]string{
 		"accept":                  contentTypeJSON,
-		"accept-language":         "en-US",
+		"accept-language":         "en-US,en;q=0.9",
 		"content-type":            contentTypeJSON,
-		"user-agent":              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+		headerUserAgent:           defaultUserAgent,
 		"x-apollo-operation-name": operationName,
 		"x-o-gql-query":           fmt.Sprintf("query %s", operationName),
 		"x-o-platform":            "rweb",
 		"x-o-bu":                  "WALMART-US",
 		"x-o-mart":                "B2C",
 		"x-o-segment":             "oaoh",
-		"x-o-correlation-id":      fmt.Sprintf("walmart-go-%d", time.Now().Unix()),
-		"wm_qos.correlation_id":   fmt.Sprintf("walmart-go-%d", time.Now().Unix()),
 		"wm_mp":                   "true",
 		"sec-fetch-site":          "same-origin",
 		"sec-fetch-mode":          "cors",
 		"sec-fetch-dest":          "empty",
-		"dnt":                     "1",
-		"x-o-platform-version":    "usweb-1.221.0",
+		"sec-ch-ua-mobile":        "?0",
+		"sec-ch-ua-platform":      `"macOS"`,
+		headerPlatformVersion:     defaultPlatform,
 		"x-enable-server-timing":  "1",
 		"x-latency-trace":         "1",
+	}
+
+	profile := c.cookieStore.GetRequestProfile()
+	for name, value := range profile.Headers {
+		if _, ok := requestProfileHeaderAllowlist[name]; ok {
+			headers[name] = value
+		}
+	}
+
+	correlationID := randomUUID()
+	headers["x-o-correlation-id"] = correlationID
+	headers["wm_qos.correlation_id"] = correlationID
+	headers["wm-client-traceid"] = randomHex(16)
+	headers["traceparent"] = fmt.Sprintf("00-%s-%s-01", randomHex(16), randomHex(8))
+	if pageURL != "" {
+		headers["referer"] = pageURL
+		headers["wm_page_url"] = pageURL
 	}
 
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+}
+
+func buildOrderPageURL(orderID, groupID string) string {
+	query := url.Values{}
+	query.Set("groupId", groupID)
+	return fmt.Sprintf("https://www.walmart.com/orders/%s?%s", url.PathEscape(orderID), query.Encode())
+}
+
+func botChallengeError(body []byte) error {
+	reference := strings.TrimSpace(string(body))
+	if len(reference) > 128 {
+		reference = reference[:128]
+	}
+	if reference == "" {
+		return fmt.Errorf("%w: HTTP 456; refresh cookies and the request profile from a browser", ErrBotChallenge)
+	}
+	return fmt.Errorf("%w: HTTP 456 (reference %s); refresh cookies and the request profile from a browser", ErrBotChallenge, reference)
+}
+
+func randomUUID() string {
+	b := randomBytes(16)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	encoded := hex.EncodeToString(b)
+	return fmt.Sprintf("%s-%s-%s-%s-%s", encoded[0:8], encoded[8:12], encoded[12:16], encoded[16:20], encoded[20:32])
+}
+
+func randomHex(byteCount int) string {
+	return hex.EncodeToString(randomBytes(byteCount))
+}
+
+func randomBytes(size int) []byte {
+	b := make([]byte, size)
+	if _, err := rand.Read(b); err == nil {
+		return b
+	}
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+	copy(b, sum[:])
+	return b
 }
 
 // setCookies adds all cookies from the store to the request.
