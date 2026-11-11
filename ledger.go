@@ -27,6 +27,7 @@ type PaymentMethodCharges struct {
 	LastFour     string      `json:"lastFour"`     // Last 4 digits of card.
 	FinalCharges []float64   `json:"finalCharges"` // Individual charge amounts.
 	ChargedDates []time.Time `json:"chargedDates"` // Date/time of each charge (parallel to FinalCharges).
+	LineTypes    []string    `json:"lineTypes"`    // Ledger line type of each charge, e.g. "ORDER_CHARGE", "ADDITIONAL_DRIVER_TIP" (parallel to FinalCharges).
 	TotalCharged float64     `json:"totalCharged"` // Sum of final charges.
 }
 
@@ -267,6 +268,7 @@ func convertToOrderLedger(orderID string, resp OrderLedgerResponse) *OrderLedger
 			LastFour:     extractLastFour(pm.Description),
 			FinalCharges: []float64{},
 			ChargedDates: []time.Time{},
+			LineTypes:    []string{},
 		}
 
 		// Extract final charges only.
@@ -283,6 +285,7 @@ func convertToOrderLedger(orderID string, resp OrderLedgerResponse) *OrderLedger
 								// Parse the charge date/time.
 								chargedAt := parseChargeDateTime(line.Date, row.Time)
 								charges.ChargedDates = append(charges.ChargedDates, chargedAt)
+								charges.LineTypes = append(charges.LineTypes, row.LineType)
 							}
 						}
 					}
